@@ -100,13 +100,19 @@ sees `true` on QNX, while `RuntimeInformation.OSDescription` reports QNX.
 
 ## Install and run
 
-On the QNX machine:
+On the QNX machine, as root:
 
 ```sh
-mkdir /opt/powershell && cd /opt/powershell
+mkdir /tmp/powershell && cd /tmp/powershell
 gzip -dc /tmp/powershell-7.6.6-qnx-x86.tar.gz | tar xf -
-./pwsh/pwsh
+./install.sh                # to /opt/powershell, with /usr/bin/pwsh
+pwsh
 ```
 
-The tree is relocatable. See [docs/qnx](../qnx/README.md) for the launcher's
+`install.sh` copies the tree to `/opt/powershell` (`--prefix` for another
+place) and links `/usr/bin/pwsh` to it (`--bindir`); `--login-shell` also
+lists it in `/etc/shells`, and `--uninstall` removes what it made. Running it
+again replaces an earlier install; it never replaces a `pwsh` or a directory
+it did not make. Without it, the unpacked tree runs where it is
+(`./pwsh/pwsh`): it is relocatable. See [docs/qnx](../qnx/README.md) for the launcher's
 settings.
