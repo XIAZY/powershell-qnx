@@ -113,6 +113,35 @@ through a raw socket, otherwise through QNX's `ping`), hashing and
 certificates, JSON, time zones, jobs, `FileSystemWatcher` and
 `Get-Content -Wait` (by polling the directories), and SSH remoting (below).
 
+### SSH remoting
+
+PowerShell remoting over SSH works with QNX's own OpenSSH 5.2, as a client
+and as a server: `Invoke-Command -HostName`, `New-PSSession` (a session keeps
+its state across commands), interactive `Enter-PSSession`, and
+`Copy-Item -ToSession` and `-FromSession`, between QNX machines and with
+PowerShell on Linux in both directions. Keys must be of type `ssh-rsa`.
+
+A QNX server needs the `powershell` subsystem in its `sshd_config`:
+
+```
+Subsystem powershell /opt/powershell/pwsh/pwsh -sshs -NoLogo
+```
+
+Current OpenSSH releases disable the algorithms OpenSSH 5.2 uses, so the
+other side must allow them:
+
+- a Linux client connecting to QNX: RSA host keys and RSA signatures, for
+  example `-Options @{ HostKeyAlgorithms = '+ssh-rsa'; PubkeyAcceptedAlgorithms = '+ssh-rsa' }`
+  with `Invoke-Command`, `New-PSSession` or `Enter-PSSession`, or the same
+  settings in `~/.ssh/config`;
+- a Linux server that QNX connects to: in its `sshd_config`,
+
+  ```
+  HostKeyAlgorithms +ssh-rsa
+  PubkeyAcceptedAlgorithms +ssh-rsa
+  KexAlgorithms +diffie-hellman-group14-sha1
+  ```
+
 ## What doesn't work, and why
 
 Most of PowerShell works on QNX as it does on Linux. This table lists what
@@ -137,7 +166,7 @@ the same with Microsoft's Linux build.
 | Network statistics (`System.Net.NetworkInformation`: IP, TCP and UDP statistics, active connections and listeners) | Throw `NetworkInformationException`. Gateway addresses work (IPv4) | .NET reads them from Linux's `/proc/net` files, which QNX does not have | `netstat` |
 | A zone name in `TZ` (`TZ=America/Toronto`) | Works in PowerShell, but QNX's own programs (`date`) then show UTC | QNX's libc understands only POSIX rule strings | A rule string (`EST5EDT4,M3.2.0/2,M11.1.0/2`), which both understand |
 | `[TimeZoneInfo]::FindSystemTimeZoneById([TimeZoneInfo]::Local.Id)` with a rule string in `TZ` | Throws `TimeZoneNotFoundException` | Lookups by id reject the rule's `,` and `<` characters | `[TimeZoneInfo]::Local` |
-| SSH remoting | `Invoke-Command -HostName` and `New-PSSession` work with QNX's OpenSSH 5.2 (keys of type `ssh-rsa`); interactive `Enter-PSSession` is not verified yet | | A QNX server needs `Subsystem powershell /opt/powershell/pwsh/pwsh -sshs -NoLogo` in its `sshd_config` |
+| SSH remoting | Works: `Invoke-Command -HostName`, `New-PSSession`, interactive `Enter-PSSession` and `Copy-Item -ToSession`/`-FromSession`, between QNX machines and with Linux in both directions | | A modern OpenSSH needs older algorithms enabled to talk to QNX's OpenSSH 5.2: see [SSH remoting](#ssh-remoting) |
 | Type checks of PowerShell classes | Some invalid definitions are accepted: `class C : System.IComparable { }` loads, where Linux reports that `CompareTo` has no implementation. A few error messages differ, and more assemblies load at startup | The runtime is Mono, not CoreCLR, which does not run on QNX | Nothing: a correct script gets the same result |
 | File times | Whole seconds | QNX 6.5 keeps file times in whole seconds | |
 
