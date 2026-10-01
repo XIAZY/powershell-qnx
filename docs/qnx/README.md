@@ -70,10 +70,11 @@ the generic launcher.
 
 Unless `TMPDIR` is set, the launcher sets it to `/tmp/qnxhost-<uid>`
 (mode 0700, made if missing). .NET creates the Unix sockets of named pipes
-in the temporary directory and deletes them when they close; on QNX 6.5,
-deleting a socket's name while the network stack (io-pkt) serves another
-socket request can hang io-pkt until a reboot. A directory of its own keeps
-PowerShell's sockets away from other programs' activity in `/tmp`.
+in the temporary directory and deletes them when they close, and on QNX 6.5
+deleting a socket's name can hang the network stack (io-pkt) until a reboot
+(see [Deleting Unix socket names](#deleting-unix-socket-names)). A directory
+of its own keeps PowerShell's sockets away from other programs' activity in
+`/tmp`.
 
 For the same reason `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1`,
 PowerShell's own switch for its host IPC listener: without it, every
@@ -82,7 +83,7 @@ With it, ordinary use creates and deletes no socket name. The cost: other
 processes cannot find or attach to this PowerShell (`Get-PSHostProcessInfo`,
 `Enter-PSHostProcess`, `Debug-Runspace` across processes). Set it to 0
 before starting PowerShell to get those back, and with them the exposure
-described under the known limitations.
+described under [Deleting Unix socket names](#deleting-unix-socket-names).
 
 `pwsh.props` also turns off PowerShell's telemetry
 (`POWERSHELL_TELEMETRY_OPTOUT=1`) and its check for new releases
@@ -152,7 +153,8 @@ the same with Microsoft's Linux build.
 | Feature | On QNX | Why | Instead |
 |---|---|---|---|
 | Culture-specific formats, sorting and casing, time-zone display names | Every culture behaves like the invariant culture: `de-DE` formats a date as `10/01/2026 13:05:00` and 1234.5 as `1,234.50`; `'i'.ToUpper('tr-TR')` is `I`; `Europe/Paris` is displayed as `(UTC+01:00) Europe/Paris`. Culture names such as `en-US` can be created (`Get-Help -UICulture`, `Update-Help`) | QNX 6.5 has no ICU, so .NET runs in globalization-invariant mode (`System.Globalization.Invariant=true` and `System.Globalization.PredefinedCulturesOnly=false` in `pwsh.props`) | Explicit formats (`Get-Date -Format yyyy-MM-dd`) and ordinal comparisons |
-| Attaching to another PowerShell (`Get-PSHostProcessInfo`, `Enter-PSHostProcess`, `Debug-Runspace` across processes) | Off by default: `Get-PSHostProcessInfo` finds no PowerShell | Each PowerShell would create a Unix socket at startup and delete it at exit, and deleting a socket's name can hang QNX 6.5's network stack (below), so `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1` | Start the PowerShell you want to attach to with `POWERSHELL_DIAGNOSTICS_OPTOUT=0`, accepting that risk for that process |
+| Attaching to another PowerShell (`Get-PSHostProcessInfo`, `Enter-PSHostProcess`, `Debug-Runspace` across processes) | Off by default: `Get-PSHostProcessInfo` finds no PowerShell | Each PowerShell would create a Unix socket at startup and delete it at exit, and deleting a socket's name can hang QNX 6.5's network stack (see [Deleting Unix socket names](#deleting-unix-socket-names)), so `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1` | Start the PowerShell you want to attach to with `POWERSHELL_DIAGNOSTICS_OPTOUT=0`, accepting that risk for that process |
+| Deleting a Unix socket's name (named pipes, Unix sockets, socket files) | Can hang the network stack until a reboot | A QNX 6.5 io-pkt bug; PowerShell itself deletes none in ordinary use | See [Deleting Unix socket names](#deleting-unix-socket-names): anonymous pipes or loopback TCP in scripts, and no `-CustomPipeName` leftovers removed except right after a reboot |
 | IPv6 | Not available: `[Net.Sockets.Socket]::OSSupportsIPv6` is false, and .NET uses IPv4. `localhost` works | QNX 6.5's IPv4 network stack (`io-pkt-v4-hc`) has no IPv6: `socket(AF_INET6)` fails with `EAFNOSUPPORT`. The IPv6 stack (`io-pkt-v6-hc`) has not been tested | IPv4 addresses |
 | `Publish-Module`, `Publish-Script` | Fail: "dotnet command version '2.0.0' or newer is required" | PowerShellGet 2 packs modules with the .NET SDK's `dotnet` command, which does not run on QNX | `Publish-PSResource` |
 | `Find-PackageProvider NuGet`, `Install-PackageProvider NuGet` | "No match was found": **as on Linux** | In PowerShell 7 the NuGet provider ships with PackageManagement (`Get-PackageProvider` lists it), so there is nothing to install | Nothing: the provider is already there |
@@ -175,15 +177,39 @@ compiled libraries by name, because the runtime maps them itself instead of
 with `dlopen` (set `QNXHOST_AOT_LOADER=dlopen` while debugging); and the
 process has a 32-bit, 4 GB address space.
 
-**Deleting Unix socket names.** On QNX 6.5, deleting a Unix socket's name
-while the network stack (io-pkt) serves a socket request from any process
-can hang the network stack until a reboot. PowerShell itself deletes none in
-ordinary use, and the runtime keeps its own deletions apart from the socket
-calls of every process of the same user that runs on it. A script can still
-trigger it if it disposes a `NamedPipeServerStream` or a `Socket` bound to a
-Unix socket path, removes a socket file, or starts PowerShell with
-`-CustomPipeName`, while another user's program or a program not built on
-.NET (such as `sshd`) uses the network.
+### Deleting Unix socket names
+
+On QNX 6.5, deleting the name of a Unix-domain socket (its file) can hang
+the network stack, io-pkt, until a reboot: every socket call then blocks,
+and ssh and the network stop answering. Measurements by the QNX port of Go
+(QNX 6.5.0, two CPUs) found that a single program deleting names in a tight
+loop, with nothing else using the network, is enough. After the socket was
+closed, the hang came somewhere between hundreds and tens of thousands of
+deletions; while the socket was still open it was rarer, but it was seen.
+Deleting a name while another socket call is in progress is an older, more
+frequent form of the same hang. Sockets without names (`socketpair`, unbound
+sockets) were not affected.
+
+What this build does about it:
+- **PowerShell deletes no socket names in ordinary use.** Its host IPC
+  listener is off by default (`POWERSHELL_DIAGNOSTICS_OPTOUT=1`), so no name
+  is created in the first place. Jobs, child processes, external commands,
+  SSH remoting and the web cmdlets use pipes and TCP, which have no names.
+- **The runtime keeps its own deletions apart from socket calls**, within
+  each process and across the processes of one user that run on it. That
+  covers only the older form; it cannot make a deletion itself safe.
+
+What can still delete names, and how to avoid it:
+- **`pwsh -CustomPipeName` (and `-NamedPipeServerMode`)** creates a named
+  pipe and leaves its socket file behind at exit. This is the one way
+  ordinary use creates the hazard: the files are harmless until something
+  deletes them. Remove leftover socket files only right after a reboot,
+  when io-pkt holds no names.
+- **Scripts** that dispose a `NamedPipeServerStream` or a `Socket` bound to a
+  Unix socket path, or that `Remove-Item` a socket file, delete a name.
+  Prefer anonymous pipes or loopback TCP. If a name must be deleted, delete
+  it while the socket is still open (`NamedPipeServerStream` already does);
+  this makes the hang rarer, not impossible.
 
 ## Changes to PowerShell itself
 
