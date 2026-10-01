@@ -39,6 +39,9 @@ openssl_version=3.5.9
 openssl_sha256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
 cacert=cacert-2026-09-25.pem
 cacert_sha256=a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505
+tz_version=2026e
+tzdata_sha256=b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
+tzcode_sha256=cc3d27ca2a0d8399504551b920970d80af83bfb9c216e8082a15491921935d54
 
 read -r runtime_repo runtime_tag runtime_commit < <(python3 -c '
 import json, sys
@@ -207,12 +210,28 @@ esac
 step "CA certificates ($cacert, Mozilla's bundle as curl publishes it)"
 fetch "https://curl.se/ca/$cacert" "$cacert" "$cacert_sha256"
 
+step "time zone data (IANA tz $tz_version)"
+# QNX 6.5 has no time-zone database, so .NET would know only UTC. The zones
+# are compiled with the zic of the same release, built here, so the output
+# does not depend on the build host's zic; the right/ and posix/ duplicate
+# trees are left out.
+fetch "https://data.iana.org/time-zones/releases/tzdata$tz_version.tar.gz" "tzdata$tz_version.tar.gz" "$tzdata_sha256"
+fetch "https://data.iana.org/time-zones/releases/tzcode$tz_version.tar.gz" "tzcode$tz_version.tar.gz" "$tzcode_sha256"
+rm -rf "$out/tz" "$out/zoneinfo"
+mkdir -p "$out/tz" "$out/zoneinfo"
+tar xzf "$out/tzcode$tz_version.tar.gz" -C "$out/tz"
+tar xzf "$out/tzdata$tz_version.tar.gz" -C "$out/tz"
+in_container sh -c "make -s -C tz zic >/dev/null && cd tz && ./zic -d /out/zoneinfo -b fat \
+	africa antarctica asia australasia europe northamerica southamerica etcetera backward factory"
+cp "$out/tz/zone.tab" "$out/tz/zone1970.tab" "$out/tz/iso3166.tab" "$out/zoneinfo/"
+
 step "install tree"
 tree=$out/powershell-qnx
 rm -rf "$tree"
 # TERMINFO: QNX keeps terminfo in /usr/lib/terminfo, where .NET does not look.
 # QNXHOST_MODE: AOT images where they exist, the JIT for the rest.
 # SSL_CERT_FILE, SSL_CERT_DIR: OpenSSL's trust store, in the install tree.
+# TZDIR: the IANA time zones, in the install tree.
 # POWERSHELL_DIAGNOSTICS_OPTOUT: no host IPC listener, the Unix socket every
 # PowerShell process would otherwise create at startup and delete at exit
 # (see docs/qnx/README.md).
@@ -227,11 +246,13 @@ python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	--host "$mono_qnx/qnxhost" \
 	--defaultenv TERMINFO=/usr/lib/terminfo --defaultenv QNXHOST_MODE=jit \
 	--defaultenv 'SSL_CERT_FILE=$ROOT/etc/ssl/cert.pem' --defaultenv 'SSL_CERT_DIR=$ROOT/etc/ssl/certs' \
+	--defaultenv 'TZDIR=$ROOT/etc/zoneinfo' \
 	--defaultenv POWERSHELL_DIAGNOSTICS_OPTOUT=1 \
 	--defaultenv POWERSHELL_TELEMETRY_OPTOUT=1 --defaultenv POWERSHELL_UPDATECHECK=Off \
 	"$out/powershell/pwsh.dll"
 mkdir -p "$tree/etc/ssl/certs"
 cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
+cp -R "$out/zoneinfo" "$tree/etc/zoneinfo"
 
 step "AOT images"
 in_container sh /repo/tools/qnx/aot.sh /out/aot-cross/mono/mini/mono-aot-cross /out/powershell-qnx /out/aot-logs
