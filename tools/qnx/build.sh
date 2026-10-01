@@ -210,8 +210,6 @@ fetch "https://curl.se/ca/$cacert" "$cacert" "$cacert_sha256"
 step "install tree"
 tree=$out/powershell-qnx
 rm -rf "$tree"
-# __PWSH_LOGIN_CHECKED: PowerShell's own marker that the login-shell check is
-# done; the check reads /proc/self/cmdline, which QNX does not have.
 # TERMINFO: QNX keeps terminfo in /usr/lib/terminfo, where .NET does not look.
 # QNXHOST_MODE: AOT images where they exist, the JIT for the rest.
 # SSL_CERT_FILE, SSL_CERT_DIR: OpenSSL's trust store, in the install tree.
@@ -227,7 +225,7 @@ python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	"$native_qnx/libSystem.Security.Cryptography.Native.OpenSsl.so" \
 	"$out/psl-native-qnx/libpsl-native.so" \
 	--host "$mono_qnx/qnxhost" \
-	--setenv __PWSH_LOGIN_CHECKED=1 --defaultenv TERMINFO=/usr/lib/terminfo --defaultenv QNXHOST_MODE=jit \
+	--defaultenv TERMINFO=/usr/lib/terminfo --defaultenv QNXHOST_MODE=jit \
 	--defaultenv 'SSL_CERT_FILE=$ROOT/etc/ssl/cert.pem' --defaultenv 'SSL_CERT_DIR=$ROOT/etc/ssl/certs' \
 	--defaultenv POWERSHELL_DIAGNOSTICS_OPTOUT=1 \
 	--defaultenv POWERSHELL_TELEMETRY_OPTOUT=1 --defaultenv POWERSHELL_UPDATECHECK=Off \
@@ -241,4 +239,4 @@ in_container sh /repo/tools/qnx/aot.sh /out/aot-cross/mono/mini/mono-aot-cross /
 step "archive"
 tar czf "$out/powershell-$pwsh_version-qnx-x86.tar.gz" -C "$tree" .
 ls -l "$out/powershell-$pwsh_version-qnx-x86.tar.gz"
-echo "Copy it to the QNX machine, unpack it, and run ./bin/qnxhost pwsh.props (see docs/qnx/README.md)."
+echo "Copy it to the QNX machine, unpack it, and run ./pwsh/pwsh (see docs/qnx/README.md)."
