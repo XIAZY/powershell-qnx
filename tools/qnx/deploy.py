@@ -81,6 +81,19 @@ def main():
             for dll in sorted(glob.glob(os.path.join(srcdir, "runtimes", rid, "lib", "*", "*.dll"))):
                 shutil.copy2(dll, appdir)
         own = sorted(os.path.basename(p) for p in glob.glob(os.path.join(appdir, "*.dll")))
+        # The program's own executable (the dotnet apphost, a Linux binary in
+        # the portable releases) becomes a script that starts it through
+        # qnxhost: programs start themselves by that path, as PowerShell does
+        # for Start-Job and other child PowerShell processes ($PSHOME/pwsh).
+        launcher = os.path.join(appdir, name)
+        if os.path.exists(launcher):
+            os.remove(launcher)
+            with open(launcher, "w") as f:
+                f.write("#!/bin/sh\n"
+                        "# Written by deploy.py: runs this program on QNX through bin/qnxhost.\n"
+                        'here=$(cd "$(dirname "$0")" && pwd)\n'
+                        f'exec "$here/../bin/qnxhost" "$here/../{name}.props" "$@"\n')
+            os.chmod(launcher, 0o755)
 
         config = {}
         rc = os.path.join(srcdir, name + ".runtimeconfig.json")
