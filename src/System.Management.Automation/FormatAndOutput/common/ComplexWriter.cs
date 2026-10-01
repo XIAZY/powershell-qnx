@@ -338,6 +338,11 @@ namespace Microsoft.PowerShell.Commands.Internal.Format
             s_cultureCollection.Add("it");        // Italian
             s_cultureCollection.Add("pt");        // Portuguese
             s_cultureCollection.Add("es");        // Spanish
+
+            // Invariant culture: its text is English-like, and it is the current culture whenever
+            // globalization-invariant mode is on (DOTNET_SYSTEM_GLOBALIZATION_INVARIANT), where every
+            // culture, even a named one, reports "iv" as its language.
+            s_cultureCollection.Add("iv");
         }
 
         /// <summary>

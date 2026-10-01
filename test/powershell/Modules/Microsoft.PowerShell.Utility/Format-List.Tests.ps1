@@ -209,6 +209,28 @@ dbda : KM
         $actual | Should -BeExactly $expected
     }
 
+    It "Format-List should wrap long values at word boundaries in the invariant culture" {
+        $obj = [pscustomobject]@{ LongDescription = "PowerShell scripting language for automation" }
+
+        # Each wrapped line keeps the space it was broken at.
+        $expected = "`nLongDescription : PowerShell `n" +
+            "                  scripting `n" +
+            "                  language for `n" +
+            "                  automation`n`n"
+
+        $savedCulture = [System.Globalization.CultureInfo]::CurrentCulture
+        try {
+            [System.Globalization.CultureInfo]::CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+            $actual = $obj | Format-List | Out-String -Width 35
+        }
+        finally {
+            [System.Globalization.CultureInfo]::CurrentCulture = $savedCulture
+        }
+
+        $actual = $actual -replace "`r`n", "`n"
+        $actual | Should -BeExactly $expected
+    }
+
     It 'Float, double, and decimal should not be truncated to number of decimals from current culture' {
         $o = [PSCustomObject]@{
             double = [double]1234.56789
