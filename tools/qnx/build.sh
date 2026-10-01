@@ -218,6 +218,8 @@ rm -rf "$tree"
 # POWERSHELL_DIAGNOSTICS_OPTOUT: no host IPC listener, the Unix socket every
 # PowerShell process would otherwise create at startup and delete at exit
 # (see docs/qnx/README.md).
+# POWERSHELL_TELEMETRY_OPTOUT, POWERSHELL_UPDATECHECK: this build does not send
+# PowerShell's telemetry or check for (Linux) updates at startup.
 python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	--native "$mono_qnx/libcoreclr.so" \
 	"$native_qnx/libSystem.Native.so" \
@@ -228,6 +230,7 @@ python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	--setenv __PWSH_LOGIN_CHECKED=1 --defaultenv TERMINFO=/usr/lib/terminfo --defaultenv QNXHOST_MODE=jit \
 	--defaultenv 'SSL_CERT_FILE=$ROOT/etc/ssl/cert.pem' --defaultenv 'SSL_CERT_DIR=$ROOT/etc/ssl/certs' \
 	--defaultenv POWERSHELL_DIAGNOSTICS_OPTOUT=1 \
+	--defaultenv POWERSHELL_TELEMETRY_OPTOUT=1 --defaultenv POWERSHELL_UPDATECHECK=Off \
 	"$out/powershell/pwsh.dll"
 mkdir -p "$tree/etc/ssl/certs"
 cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
