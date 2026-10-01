@@ -215,6 +215,9 @@ rm -rf "$tree"
 # TERMINFO: QNX keeps terminfo in /usr/lib/terminfo, where .NET does not look.
 # QNXHOST_MODE: AOT images where they exist, the JIT for the rest.
 # SSL_CERT_FILE, SSL_CERT_DIR: OpenSSL's trust store, in the install tree.
+# POWERSHELL_DIAGNOSTICS_OPTOUT: no host IPC listener, the Unix socket every
+# PowerShell process would otherwise create at startup and delete at exit
+# (see docs/qnx/README.md).
 python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	--native "$mono_qnx/libcoreclr.so" \
 	"$native_qnx/libSystem.Native.so" \
@@ -224,6 +227,7 @@ python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 	--host "$mono_qnx/qnxhost" \
 	--setenv __PWSH_LOGIN_CHECKED=1 --defaultenv TERMINFO=/usr/lib/terminfo --defaultenv QNXHOST_MODE=jit \
 	--defaultenv 'SSL_CERT_FILE=$ROOT/etc/ssl/cert.pem' --defaultenv 'SSL_CERT_DIR=$ROOT/etc/ssl/certs' \
+	--defaultenv POWERSHELL_DIAGNOSTICS_OPTOUT=1 \
 	"$out/powershell/pwsh.dll"
 mkdir -p "$tree/etc/ssl/certs"
 cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
