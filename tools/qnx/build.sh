@@ -253,6 +253,7 @@ python3 "$qnx/deploy.py" --tree --out "$tree" --framework "$out/framework" \
 mkdir -p "$tree/etc/ssl/certs"
 cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
 cp -R "$out/zoneinfo" "$tree/etc/zoneinfo"
+cp "$qnx/install.sh" "$tree/install.sh"
 
 step "AOT images"
 in_container sh /repo/tools/qnx/aot.sh /out/aot-cross/mono/mini/mono-aot-cross /out/powershell-qnx /out/aot-logs
@@ -260,4 +261,4 @@ in_container sh /repo/tools/qnx/aot.sh /out/aot-cross/mono/mini/mono-aot-cross /
 step "archive"
 tar czf "$out/powershell-$pwsh_version-qnx-x86.tar.gz" -C "$tree" .
 ls -l "$out/powershell-$pwsh_version-qnx-x86.tar.gz"
-echo "Copy it to the QNX machine, unpack it, and run ./pwsh/pwsh (see docs/qnx/README.md)."
+echo "Copy it to the QNX machine, unpack it, and run ./install.sh as root, or ./pwsh/pwsh in place (see docs/qnx/README.md)."
