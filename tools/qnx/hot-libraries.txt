@@ -1,0 +1,20 @@
+# Libraries compiled ahead of time (normal AOT, with the profiles in profiles/
+# added) for the QNX install tree; everything else is JIT-compiled.
+# Framework libraries:
+System.Private.CoreLib
+System.Console
+System.Linq.Expressions
+System.Linq
+System.Collections
+System.Collections.Concurrent
+System.Private.Uri
+System.Net.Sockets
+System.Net.Primitives
+System.Diagnostics.Process
+System.IO.Pipes
+System.Threading.Tasks.Parallel
+# PowerShell libraries:
+System.Management.Automation
+Microsoft.PowerShell.ConsoleHost
+Microsoft.PowerShell.Commands.Management
+Newtonsoft.Json
