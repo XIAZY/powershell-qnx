@@ -254,6 +254,7 @@ mkdir -p "$tree/etc/ssl/certs"
 cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
 cp -R "$out/zoneinfo" "$tree/etc/zoneinfo"
 cp "$qnx/install.sh" "$tree/install.sh"
+cp "$qnx/README.tree.md" "$tree/README.md"
 
 step "AOT images"
 in_container sh /repo/tools/qnx/aot.sh /out/aot-cross/mono/mini/mono-aot-cross /out/powershell-qnx /out/aot-logs
