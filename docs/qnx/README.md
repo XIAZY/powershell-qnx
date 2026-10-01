@@ -113,6 +113,49 @@ through a raw socket, otherwise through QNX's `ping`), hashing and
 certificates, JSON, time zones, jobs, `FileSystemWatcher` and
 `Get-Content -Wait` (by polling the directories), and SSH remoting (below).
 
+## What doesn't work, and why
+
+Most of PowerShell works on QNX as it does on Linux. This table lists what
+differs, as measured on QNX 6.5.0 with this build, why, and what to use
+instead. "As on Linux" marks behaviour that looks like a QNX problem but is
+the same with Microsoft's Linux build.
+
+| Feature | On QNX | Why | Instead |
+|---|---|---|---|
+| Culture-specific formats, sorting and casing, time-zone display names | Every culture behaves like the invariant culture: `de-DE` formats a date as `10/01/2026 13:05:00` and 1234.5 as `1,234.50`; `'i'.ToUpper('tr-TR')` is `I`; `Europe/Paris` is displayed as `(UTC+01:00) Europe/Paris`. Culture names such as `en-US` can be created (`Get-Help -UICulture`, `Update-Help`) | QNX 6.5 has no ICU, so .NET runs in globalization-invariant mode (`System.Globalization.Invariant=true` and `System.Globalization.PredefinedCulturesOnly=false` in `pwsh.props`) | Explicit formats (`Get-Date -Format yyyy-MM-dd`) and ordinal comparisons |
+| Attaching to another PowerShell (`Get-PSHostProcessInfo`, `Enter-PSHostProcess`, `Debug-Runspace` across processes) | Off by default: `Get-PSHostProcessInfo` finds no PowerShell | Each PowerShell would create a Unix socket at startup and delete it at exit, and deleting a socket's name can hang QNX 6.5's network stack (below), so `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1` | Start the PowerShell you want to attach to with `POWERSHELL_DIAGNOSTICS_OPTOUT=0`, accepting that risk for that process |
+| IPv6 | Not available: `[Net.Sockets.Socket]::OSSupportsIPv6` is false, and .NET uses IPv4. `localhost` works | QNX 6.5's IPv4 network stack (`io-pkt-v4-hc`) has no IPv6: `socket(AF_INET6)` fails with `EAFNOSUPPORT`. The IPv6 stack (`io-pkt-v6-hc`) has not been tested | IPv4 addresses |
+| `Publish-Module`, `Publish-Script` | Fail: "dotnet command version '2.0.0' or newer is required" | PowerShellGet 2 packs modules with the .NET SDK's `dotnet` command, which does not run on QNX | `Publish-PSResource` |
+| `Find-PackageProvider NuGet`, `Install-PackageProvider NuGet` | "No match was found": **as on Linux** | In PowerShell 7 the NuGet provider ships with PackageManagement (`Get-PackageProvider` lists it), so there is nothing to install | Nothing: the provider is already there |
+| `Test-Connection -Traceroute`: the address of each hop | Each hop is reported with the destination's address (`Hostname`, `Reply.Address`); hop numbers and statuses are right | As with .NET on FreeBSD and macOS: on Linux, .NET gets routers' addresses from `IP_RECVERR`, which QNX does not have | `/usr/bin/traceroute` |
+| `Test-Connection` without root: `-MtuSize`, `-BufferSize`, `-TimeToLive` | `-MtuSize` and `-BufferSize` fail ("Unable to send custom ping payload"); with `-TimeToLive`, an expired TTL is reported as `TimedOut`. Plain pings work | Raw ICMP sockets need root, and QNX has no unprivileged ICMP sockets, so .NET runs the `ping` utility instead, which cannot send a custom payload | Run as root: .NET then uses a raw socket, and all of these work, `-Traceroute` included |
+| `FileSystemWatcher`, `Get-Content -Wait` | Work, by polling: events arrive up to 250 ms late (measured 5 to 257 ms), longer for large watched trees; several changes to one file within that interval arrive as one; a rewrite that keeps both size and modification time is not seen; no access events | QNX 6.5 has no inotify; the runtime emulates it by scanning the watched directories, at about 300 `lstat` calls a second at most | Don't rely on seeing every intermediate change |
+| Start time after a boot | About 2.4 s for the first start after a boot or heavy disk activity, against under 1 s when the files are cached | A cold start reads its pages from disk one page fault at a time; reading the whole working set first was measured to be slower | Nothing: later starts are fast |
+| Files over 2 GB | Work: writing, reading and seeking past 2 GiB and `SetLength(3GB)` | | Note that QNX's `qnx6` file system has no sparse files: `SetLength(3GB)` allocates 3 GB on disk |
+| Listing mount points | `[IO.DriveInfo]::GetDrives()` returns `/` only, and `Get-PSDrive` shows `/` and `Temp`, whatever else is mounted | QNX 6.5 has no API that lists mounts; the runtime reports the root | `df` |
+| Process details (`Get-Process`) | `Threads` is empty, `HandleCount` is 0, and peak memory values equal the current ones | .NET reads Linux's `/proc` files; the runtime presents them from QNX's process manager, which has no counterpart for these | `pidin` |
+| Network statistics (`System.Net.NetworkInformation`: IP, TCP and UDP statistics, active connections and listeners) | Throw `NetworkInformationException`. Gateway addresses work (IPv4) | .NET reads them from Linux's `/proc/net` files, which QNX does not have | `netstat` |
+| A zone name in `TZ` (`TZ=America/Toronto`) | Works in PowerShell, but QNX's own programs (`date`) then show UTC | QNX's libc understands only POSIX rule strings | A rule string (`EST5EDT4,M3.2.0/2,M11.1.0/2`), which both understand |
+| `[TimeZoneInfo]::FindSystemTimeZoneById([TimeZoneInfo]::Local.Id)` with a rule string in `TZ` | Throws `TimeZoneNotFoundException` | Lookups by id reject the rule's `,` and `<` characters | `[TimeZoneInfo]::Local` |
+| SSH remoting | `Invoke-Command -HostName` and `New-PSSession` work with QNX's OpenSSH 5.2 (keys of type `ssh-rsa`); interactive `Enter-PSSession` is not verified yet | | A QNX server needs `Subsystem powershell /opt/powershell/pwsh/pwsh -sshs -NoLogo` in its `sshd_config` |
+| Type checks of PowerShell classes | Some invalid definitions are accepted: `class C : System.IComparable { }` loads, where Linux reports that `CompareTo` has no implementation. A few error messages differ, and more assemblies load at startup | The runtime is Mono, not CoreCLR, which does not run on QNX | Nothing: a correct script gets the same result |
+| File times | Whole seconds | QNX 6.5 keeps file times in whole seconds | |
+
+Two more things to know: native debuggers do not see the ahead-of-time
+compiled libraries by name, because the runtime maps them itself instead of
+with `dlopen` (set `QNXHOST_AOT_LOADER=dlopen` while debugging); and the
+process has a 32-bit, 4 GB address space.
+
+**Deleting Unix socket names.** On QNX 6.5, deleting a Unix socket's name
+while the network stack (io-pkt) serves a socket request from any process
+can hang the network stack until a reboot. PowerShell itself deletes none in
+ordinary use, and the runtime keeps its own deletions apart from the socket
+calls of every process of the same user that runs on it. A script can still
+trigger it if it disposes a `NamedPipeServerStream` or a `Socket` bound to a
+Unix socket path, removes a socket file, or starts PowerShell with
+`-CustomPipeName`, while another user's program or a program not built on
+.NET (such as `sshd`) uses the network.
+
 ## Changes to PowerShell itself
 
 The port changes PowerShell's own code only where the fix is not specific to
@@ -122,41 +165,3 @@ QNX:
 |---|---|
 | SSH remoting: `CloseConnection` ignores I/O errors from disposing the transport's streams | When ssh exits while the client's first write to its stdin is blocked on a full pipe, `Invoke-Command`, `New-PSSession` and `Enter-PSSession` report the SSH error instead of waiting forever. QNX's pipes (5120 bytes) are always smaller than that first message (about 5.4 KB); on Linux it happens with one-page pipes. Not submitted upstream. |
 | `Format-List` and `Format-Table -Wrap` wrap at word boundaries in the invariant culture | In globalization-invariant mode (the only mode on QNX, and common in Linux containers) every culture's language is "iv", which was not in the list of languages that wrap at spaces, so long values broke mid-word. Not submitted upstream. |
-
-## Known limitations
-
-- **SSH remoting** works with QNX's own OpenSSH 5.2 (`Invoke-Command
-  -HostName` from QNX to a QNX server; keys of type `ssh-rsa`). A QNX server
-  needs `Subsystem powershell /opt/powershell/pwsh/pwsh -sshs -NoLogo` in its
-  `sshd_config`. Interactive sessions (`Enter-PSSession`) are not verified
-  yet.
-- **Process information** has no thread list (`Process.Threads` is empty),
-  no handle counts, and peak memory values equal the current ones. It comes
-  from QNX's `/proc` through System.Native, which presents the Linux files
-  .NET reads.
-- **No locale data.** QNX 6.5 has no ICU, so .NET runs in
-  globalization-invariant mode (`System.Globalization.Invariant=true` in
-  `pwsh.props`). `pwsh.props` also sets
-  `System.Globalization.PredefinedCulturesOnly=false`, so culture names such
-  as `en-US` can be created (`Get-Help -UICulture`, `Update-Help`,
-  `Save-Help`, scripts that name a culture) and behave like the invariant
-  culture. Culture-specific date and number formats and the sorting rules of
-  other languages are not available.
-- **Mount points are not enumerated**; the file system has one drive, `/`.
-- **TCP/UDP statistics** (`System.Net.NetworkInformation`) are not supported.
-- **File timestamps** set through a file descriptor have whole-second
-  resolution.
-- **Interrupted system calls are not restarted** on QNX 6.5. The launcher keeps
-  asynchronous signals away from the runtime's threads; a program that
-  signals a specific thread can still cause `EINTR` there.
-- **Native debuggers** do not see the AOT images by name (the runtime maps
-  them itself); `QNXHOST_AOT_LOADER=dlopen` restores that for debugging.
-- **io-pkt and socket names:** on QNX 6.5, deleting a Unix socket's name
-  while io-pkt serves a socket request from any process can hang the
-  network stack until a reboot. PowerShell itself deletes none in ordinary
-  use (see `POWERSHELL_DIAGNOSTICS_OPTOUT` above), and the runtime keeps its
-  own deletions apart from its own socket calls, but a script that disposes
-  a `NamedPipeServerStream` or a `Socket` bound to a Unix socket path, or
-  removes a socket file, while another process uses the network can still
-  trigger it.
-- 32-bit limits: a 4 GB address space.
