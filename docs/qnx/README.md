@@ -64,6 +64,7 @@ the generic launcher.
 | `QNXHOST_PRIVATE_TMPDIR=0` | keep the inherited `TMPDIR` behaviour (see below) |
 | `TERMINFO` | defaults to `/usr/lib/terminfo`, where QNX keeps its terminfo |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR` | default to the install tree's `etc/ssl/cert.pem` and `etc/ssl/certs` |
+| `TZDIR` | defaults to the install tree's `etc/zoneinfo` (see below) |
 
 Unless `TMPDIR` is set, the launcher sets it to `/tmp/qnxhost-<uid>`
 (mode 0700, made if missing). .NET creates the Unix sockets of named pipes
@@ -88,6 +89,15 @@ it reports nothing to Microsoft, and the releases the update check points to
 are not built for QNX. Both are defaults, so setting the variables before
 starting PowerShell turns them back on. Without the telemetry, each start is
 also about 0.2 s faster.
+
+Time zones: QNX has no time-zone database, so the install tree carries the
+IANA zones (release 2026e) in `etc/zoneinfo`, and `TimeZoneInfo` finds them
+by id (`America/Toronto`). QNX itself keeps the local zone in `TZ` as a
+POSIX rule string (`EST5EDT4,M3.2.0/2,M11.1.0/2`), which .NET cannot read;
+the launcher turns it into a zone .NET can find, leaving `TZ` unchanged for
+QNX's own libc and for child programs. With `TZ` unset, the system's rule is
+used. A zone name in `TZ` (`TZ=America/Toronto`) works in PowerShell but not
+in QNX's libc, so other programs would see UTC.
 
 ## What works
 
