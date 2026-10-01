@@ -34,8 +34,10 @@ or its releases, and you need your own licensed copy to build.
   old for .NET), and Mozilla's CA certificates in `etc/ssl/cert.pem`.
 
 On a 2.8 GHz x86 machine, `pwsh -Command '$PSVersionTable'` takes about
-0.8 s, the interactive prompt appears after about 1.2 s, and the process
-uses about 70 MB at the prompt.
+0.7 s to exit, and about 2.4 s for the first start after a boot or after
+heavy disk activity, when the libraries are read from disk; the interactive
+prompt appears after about 1.2 s, and the process uses about 70 MB at the
+prompt.
 
 ## Running
 
@@ -105,13 +107,29 @@ The PowerShell language and engine, the interactive prompt with PSReadLine
 (editing, history, tab completion), the core cmdlets for objects, files and
 formatting, modules, external programs and pipelines between them, child
 processes and their exit codes, `Get-Process` and process information, named
-and anonymous pipes, sockets, DNS, HTTP and HTTPS (`Invoke-WebRequest`,
-`Invoke-RestMethod`), hashing and certificates, and JSON.
+and anonymous pipes, sockets, DNS and reverse lookups, HTTP and HTTPS
+(`Invoke-WebRequest`, `Invoke-RestMethod`), `Test-Connection` (as root
+through a raw socket, otherwise through QNX's `ping`), hashing and
+certificates, JSON, time zones, jobs, `FileSystemWatcher` and
+`Get-Content -Wait` (by polling the directories), and SSH remoting (below).
+
+## Changes to PowerShell itself
+
+The port changes PowerShell's own code only where the fix is not specific to
+QNX:
+
+| Change | Effect |
+|---|---|
+| SSH remoting: `CloseConnection` ignores I/O errors from disposing the transport's streams | When ssh exits while the client's first write to its stdin is blocked on a full pipe, `Invoke-Command`, `New-PSSession` and `Enter-PSSession` report the SSH error instead of waiting forever. QNX's pipes (5120 bytes) are always smaller than that first message (about 5.4 KB); on Linux it happens with one-page pipes. Not submitted upstream. |
+| `Format-List` and `Format-Table -Wrap` wrap at word boundaries in the invariant culture | In globalization-invariant mode (the only mode on QNX, and common in Linux containers) every culture's language is "iv", which was not in the list of languages that wrap at spaces, so long values broke mid-word. Not submitted upstream. |
 
 ## Known limitations
 
-- **No SSH remoting yet.** `libpsl-native`'s `ForkAndExecProcess`, which
-  remoting uses to start `ssh`, returns "not supported".
+- **SSH remoting** works with QNX's own OpenSSH 5.2 (`Invoke-Command
+  -HostName` from QNX to a QNX server; keys of type `ssh-rsa`). A QNX server
+  needs `Subsystem powershell /opt/powershell/pwsh/pwsh -sshs -NoLogo` in its
+  `sshd_config`. Interactive sessions (`Enter-PSSession`) are not verified
+  yet.
 - **Process information** has no thread list (`Process.Threads` is empty),
   no handle counts, and peak memory values equal the current ones. It comes
   from QNX's `/proc` through System.Native, which presents the Linux files

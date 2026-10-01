@@ -12,8 +12,10 @@ It includes a command-line shell, an associated scripting language, and a framew
 This repository is a fork of [PowerShell/PowerShell](https://github.com/PowerShell/PowerShell)
 that builds PowerShell for QNX Neutrino 6.5.0 on x86, on the Mono runtime from
 [XIAZY/runtime-qnx](https://github.com/XIAZY/runtime-qnx). PowerShell's own
-sources are unchanged; PowerShell's QNX native library, the build scripts and
-the documentation are in `src/qnx`, `tools/qnx` and [docs/qnx](docs/qnx/README.md),
+sources carry only the general fixes listed in
+[docs/qnx](docs/qnx/README.md#changes-to-powershell-itself); PowerShell's QNX
+native library, the build scripts and the documentation are in `src/qnx`,
+`tools/qnx` and [docs/qnx](docs/qnx/README.md),
 and [docs/building/qnx.md](docs/building/qnx.md) explains the build.
 The QNX SDP 6.5.0 headers and libraries needed to build are proprietary to
 BlackBerry QNX: they are not distributed here, and you need your own licensed
