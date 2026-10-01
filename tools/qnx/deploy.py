@@ -108,10 +108,15 @@ def main():
             f"APP_CONTEXT_BASE_DIRECTORY=$ROOT/{name}/",
             "RUNTIME_IDENTIFIER=linux-x86",
             "System.Globalization.Invariant=true",
+            # Culture names (en-US, de-DE) are accepted and behave like the
+            # invariant culture, instead of throwing: QNX has no ICU data, and
+            # Get-Help -UICulture, Update-Help and scripts that name a culture
+            # need them to exist.
+            "System.Globalization.PredefinedCulturesOnly=false",
         ]
         props += [f"SETENV={e}" for e in args.setenv] + [f"DEFAULTENV={e}" for e in args.defaultenv]
         for key, value in config.items():
-            if key == "System.Globalization.Invariant":
+            if key in ("System.Globalization.Invariant", "System.Globalization.PredefinedCulturesOnly"):
                 continue
             props.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
         with open(os.path.join(args.out, name + ".props"), "w") as f:

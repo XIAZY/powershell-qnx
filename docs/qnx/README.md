@@ -94,6 +94,14 @@ and anonymous pipes, sockets, DNS, HTTP and HTTPS (`Invoke-WebRequest`,
   no handle counts, and peak memory values equal the current ones. It comes
   from QNX's `/proc` through System.Native, which presents the Linux files
   .NET reads.
+- **No locale data.** QNX 6.5 has no ICU, so .NET runs in
+  globalization-invariant mode (`System.Globalization.Invariant=true` in
+  `pwsh.props`). `pwsh.props` also sets
+  `System.Globalization.PredefinedCulturesOnly=false`, so culture names such
+  as `en-US` can be created (`Get-Help -UICulture`, `Update-Help`,
+  `Save-Help`, scripts that name a culture) and behave like the invariant
+  culture. Culture-specific date and number formats and the sorting rules of
+  other languages are not available.
 - **Mount points are not enumerated**; the file system has one drive, `/`.
 - **TCP/UDP statistics** (`System.Net.NetworkInformation`) are not supported.
 - **File timestamps** set through a file descriptor have whole-second
