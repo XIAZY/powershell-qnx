@@ -55,6 +55,8 @@ Arguments after `pwsh.props` are PowerShell's own.
 | `QNXHOST_VERBOSE=1` | one line per AOT image the runtime maps or leaves to `dlopen` |
 | `QNXHOST_MALLINFO=1` | malloc's statistics on standard error at exit |
 | `POWERSHELL_DIAGNOSTICS_OPTOUT=0` | turn the host IPC listener back on (defaults to 1; see below) |
+| `POWERSHELL_TELEMETRY_OPTOUT=0` | send PowerShell's telemetry (defaults to 1: off; see below) |
+| `POWERSHELL_UPDATECHECK=Default` | check for new PowerShell releases at startup (defaults to `Off`) |
 | `QNXHOST_PRIVATE_TMPDIR=0` | keep the inherited `TMPDIR` behaviour (see below) |
 | `TERMINFO` | defaults to `/usr/lib/terminfo`, where QNX keeps its terminfo |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR` | default to the install tree's `etc/ssl/cert.pem` and `etc/ssl/certs` |
@@ -74,6 +76,14 @@ processes cannot find or attach to this PowerShell (`Get-PSHostProcessInfo`,
 `Enter-PSHostProcess`, `Debug-Runspace` across processes). Set it to 0
 before starting PowerShell to get those back, and with them the exposure
 described under the known limitations.
+
+`pwsh.props` also turns off PowerShell's telemetry
+(`POWERSHELL_TELEMETRY_OPTOUT=1`) and its check for new releases
+(`POWERSHELL_UPDATECHECK=Off`): this is not an official PowerShell build, so
+it reports nothing to Microsoft, and the releases the update check points to
+are not built for QNX. Both are defaults, so setting the variables before
+starting PowerShell turns them back on. Without the telemetry, each start is
+also about 0.2 s faster.
 
 ## What works
 
