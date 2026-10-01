@@ -1781,14 +1781,34 @@ namespace System.Management.Automation.Remoting.Client
             var connectionTimer = Interlocked.Exchange(ref _connectionTimer, null);
             connectionTimer?.Dispose();
 
+            // Disposing the writer flushes whatever a failed write left in its buffer. When the SSH
+            // process has already exited (for example after failing to connect) while a write to its
+            // stdin was blocked on a full pipe, that flush fails with a broken pipe. An exception here
+            // would escape the transport error handler before the error is reported, and the caller
+            // would wait for the connection forever.
             var stdInWriter = Interlocked.Exchange(ref _stdInWriter, null);
-            stdInWriter?.Dispose();
+            try
+            {
+                stdInWriter?.Dispose();
+            }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
 
             var stdOutReader = Interlocked.Exchange(ref _stdOutReader, null);
-            stdOutReader?.Dispose();
+            try
+            {
+                stdOutReader?.Dispose();
+            }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
 
             var stdErrReader = Interlocked.Exchange(ref _stdErrReader, null);
-            stdErrReader?.Dispose();
+            try
+            {
+                stdErrReader?.Dispose();
+            }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
 
             // The CloseConnection() method can be called multiple times from multiple places.
             // Set the _sshProcessId to zero here so that we go through the work of finding
