@@ -42,8 +42,8 @@ def main():
     ap.add_argument("--native", nargs="+", required=True, help="QNX-built native libraries")
     ap.add_argument("--host", required=True, help="qnxhost built for QNX")
     ap.add_argument("--tree", action="store_true",
-                    help="copy each program's whole directory (modules, resources), not only its assemblies; "
-                         "runtimes/ and ref/ are left out")
+                    help="copy each program's whole directory (modules, resources, and ref/, the reference "
+                         "assemblies Add-Type compiles against), not only its assemblies; runtimes/ is left out")
     ap.add_argument("--setenv", action="append", default=[], metavar="NAME=VALUE",
                     help="environment variable qnxhost sets before starting the runtime")
     ap.add_argument("--defaultenv", action="append", default=[], metavar="NAME=VALUE",
@@ -73,7 +73,7 @@ def main():
         if args.tree:
             shutil.copytree(srcdir, appdir, dirs_exist_ok=True, symlinks=True,
                             ignore=lambda d, names: [n for n in names
-                                                     if d == srcdir and n in ("runtimes", "ref")])
+                                                     if d == srcdir and n == "runtimes"])
         for dll in glob.glob(os.path.join(srcdir, "*.dll")):
             shutil.copy2(dll, appdir)
         # RID-specific assemblies replace the portable ones, the most specific last.
