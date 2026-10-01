@@ -14,12 +14,13 @@ or its releases, and you need your own licensed copy to build.
   ([XIAZY/runtime-qnx](https://github.com/XIAZY/runtime-qnx)), branch
   `release/10.0`. The port adds QNX as a host for Mono and System.Native;
   the managed libraries are .NET's linux-x86 libraries, unmodified.
-- **Launcher:** `bin/qnxhost`, from the runtime, replaces the `dotnet` host,
-  which QNX cannot run. It reads the program's properties from `pwsh.props` (the trusted
-  assemblies, search paths and runtime settings the `dotnet` host would
-  pass), confines asynchronous signals to a thread of its own (QNX 6.5 cannot
-  restart interrupted system calls), and starts the runtime on a thread with
-  an 8 MiB stack.
+- **Launcher:** `qnxhost`, from the runtime, replaces the `dotnet` host,
+  which QNX cannot run. `pwsh/pwsh` is a copy of it: run under that name, it
+  reads `pwsh.props` beside the `pwsh` directory (the trusted assemblies,
+  search paths and runtime settings the `dotnet` host would pass), so that
+  PowerShell is its own executable, as on Linux. It confines asynchronous
+  signals to a thread of its own (QNX 6.5 cannot restart interrupted system
+  calls), and starts the runtime on a thread with an 8 MiB stack.
 - **Code:** sixteen libraries (System.Private.CoreLib,
   System.Management.Automation, the console host and others, listed in
   `tools/qnx/hot-libraries.txt`) are compiled ahead of time; the JIT compiles
@@ -39,13 +40,16 @@ uses about 70 MB at the prompt.
 ## Running
 
 ```sh
-cd /opt/powershell
-./bin/qnxhost pwsh.props                       # interactive
-./bin/qnxhost pwsh.props -Command 'Get-Date'   # one command
-./bin/qnxhost pwsh.props -File script.ps1
+/opt/powershell/pwsh/pwsh                       # interactive
+/opt/powershell/pwsh/pwsh -Command 'Get-Date'   # one command
+/opt/powershell/pwsh/pwsh -File script.ps1
 ```
 
-Arguments after `pwsh.props` are PowerShell's own.
+A symbolic link to `pwsh/pwsh` (in `/usr/bin`, for example) works too: the
+launcher finds `pwsh.props` from its own resolved path, not from the name it
+was started by. `pwsh -Login` and login shells (`-pwsh`) work.
+`./bin/qnxhost pwsh.props [arguments]` is the same program, started through
+the generic launcher.
 
 | Setting (environment) | Effect |
 |---|---|
@@ -98,8 +102,6 @@ and anonymous pipes, sockets, DNS, HTTP and HTTPS (`Invoke-WebRequest`,
 
 - **No SSH remoting yet.** `libpsl-native`'s `ForkAndExecProcess`, which
   remoting uses to start `ssh`, returns "not supported".
-- **PowerShell never acts as a login shell:** `pwsh.props` sets
-  `__PWSH_LOGIN_CHECKED=1`, PowerShell's own marker that the check is done.
 - **Process information** has no thread list (`Process.Threads` is empty),
   no handle counts, and peak memory values equal the current ones. It comes
   from QNX's `/proc` through System.Native, which presents the Linux files

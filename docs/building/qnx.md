@@ -103,7 +103,7 @@ On the QNX machine:
 ```sh
 mkdir /opt/powershell && cd /opt/powershell
 gzip -dc /tmp/powershell-7.6.6-qnx-x86.tar.gz | tar xf -
-./bin/qnxhost pwsh.props
+./pwsh/pwsh
 ```
 
 The tree is relocatable. See [docs/qnx](../qnx/README.md) for the launcher's
