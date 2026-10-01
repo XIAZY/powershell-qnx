@@ -18,8 +18,15 @@
  *    /proc/<pid>/stat and no kinfo_proc sysctl.
  *  - GetPwUid, GetGrGid: QNX 6.5 has no strnlen or strndup; the names
  *    getpwuid_r and getgrgid_r return are NUL-terminated in their buffers.
- *  - ForkAndExecProcess is only used by SSH remoting and is not implemented
- *    yet: it fails with ENOSYS.
+ *  - ForkAndExecProcess (SSH remoting starts ssh with it) uses vfork:
+ *    QNX's fork fails with ENOSYS in a multithreaded process. As in
+ *    System.Native, vfork is retried while it fails spuriously with EBADF,
+ *    every signal is blocked around it, and the child resets custom
+ *    handlers to the default and starts with no signal blocked (the
+ *    launcher confines the asynchronous signals to a thread of its own).
+ *    As upstream, a failure in the child before execve completes (dup2,
+ *    chdir, execve itself) comes back as the call's errno, through a
+ *    close-on-exec pipe, not as a child that exits.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -392,14 +399,156 @@ PSL_EXPORT void Native_CloseLog(void)
     closelog();
 }
 
-/* createprocess.cpp: used only by SSH remoting; not implemented yet. */
+/* createprocess.cpp */
+enum { SUPPRESS_PROCESS_SIGINT = 0x00000001 };
+
+/* pipe() with both ends close-on-exec (QNX 6.5 has no pipe2). */
+static int PipeCloExec(int fds[2])
+{
+    if (pipe(fds) != 0)
+        return -1;
+    if (fcntl(fds[0], F_SETFD, FD_CLOEXEC) != 0 || fcntl(fds[1], F_SETFD, FD_CLOEXEC) != 0) {
+        int err = errno;
+        close(fds[0]);
+        close(fds[1]);
+        fds[0] = fds[1] = -1;
+        errno = err;
+        return -1;
+    }
+    return 0;
+}
+
+static void CloseIfOpen(int fd)
+{
+    if (fd != -1)
+        close(fd);
+}
+
+static int Dup2Retry(int from, int to)
+{
+    int result;
+    while ((result = dup2(from, to)) == -1 && errno == EINTR)
+        ;
+    return result;
+}
+
+/* In the child of ForkAndExecProcess: sends errno to the parent through the
+ * close-on-exec pipe and exits. Only system calls: the child shares the
+ * parent's memory until execve. */
+static void ExitToParent(int fd)
+{
+    int err = errno != 0 ? errno : EIO;
+    while (write(fd, &err, sizeof err) == -1 && errno == EINTR)
+        ;
+    _exit(err);
+}
+
 PSL_EXPORT int32_t ForkAndExecProcess(const char* filename, char* const argv[], char* const envp[], const char* cwd,
                                       int32_t redirectStdin, int32_t redirectStdout, int32_t redirectStderr,
                                       int32_t creationFlags, int32_t* childPid, int32_t* stdinFd, int32_t* stdoutFd,
                                       int32_t* stderrFd)
 {
-    (void)filename, (void)argv, (void)envp, (void)cwd, (void)redirectStdin, (void)redirectStdout;
-    (void)redirectStderr, (void)creationFlags, (void)childPid, (void)stdinFd, (void)stdoutFd, (void)stderrFd;
-    errno = ENOSYS;
+    int stdinFds[2] = { -1, -1 }, stdoutFds[2] = { -1, -1 }, stderrFds[2] = { -1, -1 };
+    int execFds[2] = { -1, -1 }; /* the child's errno if it fails before execve completes */
+    sigset_t all, old;
+    pid_t pid;
+    int err, childErr;
+    ssize_t n;
+
+    if (filename == NULL || argv == NULL || envp == NULL || childPid == NULL || stdinFd == NULL || stdoutFd == NULL ||
+        stderrFd == NULL || (redirectStdin & ~1) != 0 || (redirectStdout & ~1) != 0 || (redirectStderr & ~1) != 0) {
+        errno = EINVAL;
+        goto fail;
+    }
+    /* Fails the call, rather than the child, when the program cannot run. */
+    if (access(filename, X_OK) != 0)
+        goto fail;
+    if ((redirectStdin && PipeCloExec(stdinFds) != 0) || (redirectStdout && PipeCloExec(stdoutFds) != 0) ||
+        (redirectStderr && PipeCloExec(stderrFds) != 0) || PipeCloExec(execFds) != 0)
+        goto fail;
+
+    sigfillset(&all);
+    pthread_sigmask(SIG_SETMASK, &all, &old);
+    while ((pid = vfork()) == -1 && errno == EBADF)
+        ;
+    if (pid == 0) {
+        /* The child shares the parent's memory until execve: only system calls here. */
+        struct sigaction dfl, cur;
+        sigset_t none;
+        memset(&dfl, 0, sizeof dfl);
+        dfl.sa_handler = SIG_DFL;
+        for (int sig = 1; sig < NSIG; sig++) {
+            if (sig == SIGKILL || sig == SIGSTOP)
+                continue;
+            if (sigaction(sig, NULL, &cur) == 0 && cur.sa_handler != SIG_IGN && cur.sa_handler != SIG_DFL)
+                sigaction(sig, &dfl, NULL);
+        }
+        if (creationFlags & SUPPRESS_PROCESS_SIGINT) {
+            struct sigaction ign;
+            memset(&ign, 0, sizeof ign);
+            ign.sa_handler = SIG_IGN;
+            if (sigaction(SIGINT, &ign, NULL) == -1)
+                ExitToParent(execFds[1]);
+        }
+        sigemptyset(&none);
+        pthread_sigmask(SIG_SETMASK, &none, NULL);
+        if ((redirectStdin && Dup2Retry(stdinFds[0], STDIN_FILENO) == -1) ||
+            (redirectStdout && Dup2Retry(stdoutFds[1], STDOUT_FILENO) == -1) ||
+            (redirectStderr && Dup2Retry(stderrFds[1], STDERR_FILENO) == -1))
+            ExitToParent(execFds[1]);
+        if (cwd != NULL && chdir(cwd) == -1)
+            ExitToParent(execFds[1]);
+        execve(filename, argv, envp);
+        ExitToParent(execFds[1]);
+    }
+    err = errno;
+    pthread_sigmask(SIG_SETMASK, &old, NULL);
+    if (pid == -1) {
+        errno = err;
+        goto fail;
+    }
+
+    /* As upstream: the write end closes at a successful execve (close-on-exec),
+     * so the read sees end-of-file; a child that failed first sent its errno. */
+    close(execFds[1]);
+    execFds[1] = -1;
+    while ((n = read(execFds[0], &childErr, sizeof childErr)) == -1 && errno == EINTR)
+        ;
+    if (n == (ssize_t)sizeof childErr) {
+        while (waitpid(pid, NULL, 0) == -1 && errno == EINTR)
+            ;
+        errno = childErr;
+        goto fail;
+    }
+    CloseIfOpen(execFds[0]);
+
+    *childPid = pid;
+    *stdinFd = stdinFds[1];
+    *stdoutFd = stdoutFds[0];
+    *stderrFd = stderrFds[0];
+    CloseIfOpen(stdinFds[0]);
+    CloseIfOpen(stdoutFds[1]);
+    CloseIfOpen(stderrFds[1]);
+    return 0;
+
+fail:
+    err = errno;
+    CloseIfOpen(execFds[0]);
+    CloseIfOpen(execFds[1]);
+    CloseIfOpen(stdinFds[0]);
+    CloseIfOpen(stdinFds[1]);
+    CloseIfOpen(stdoutFds[0]);
+    CloseIfOpen(stdoutFds[1]);
+    CloseIfOpen(stderrFds[0]);
+    CloseIfOpen(stderrFds[1]);
+    if (childPid != NULL)
+        *childPid = -1;
+    if (stdinFd != NULL)
+        *stdinFd = -1;
+    if (stdoutFd != NULL)
+        *stdoutFd = -1;
+    if (stderrFd != NULL)
+        *stderrFd = -1;
+    errno = err;
     return -1;
 }
