@@ -44,7 +44,9 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#ifdef HAVE_SYSLOG_H
 #include <syslog.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 
@@ -383,20 +385,32 @@ PSL_EXPORT int32_t SetDate(struct private_tm* time)
     return settimeofday(&tv, NULL);
 }
 
-/* nativesyslog.cpp */
+/* nativesyslog.cpp. Without <syslog.h> there is nothing to log to. */
 PSL_EXPORT void Native_OpenLog(const char* ident, int facility)
 {
+#ifdef HAVE_SYSLOG_H
     openlog(ident, LOG_NDELAY | LOG_PID, facility);
+#else
+    (void)ident;
+    (void)facility;
+#endif
 }
 
 PSL_EXPORT void Native_SysLog(int32_t priority, const char* message)
 {
+#ifdef HAVE_SYSLOG_H
     syslog(priority, "%s", message);
+#else
+    (void)priority;
+    (void)message;
+#endif
 }
 
 PSL_EXPORT void Native_CloseLog(void)
 {
+#ifdef HAVE_SYSLOG_H
     closelog();
+#endif
 }
 
 /* createprocess.cpp */
