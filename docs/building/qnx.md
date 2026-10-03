@@ -58,8 +58,8 @@ tools/qnx/build.sh
 
 The script:
 
-1. clones the runtime at the tag and commit pinned in
-   `tools/qnx/runtime.json`;
+1. clones the runtime at the commit pinned in `tools/qnx/runtime.json`
+   (with the branch or tag that holds it);
 2. builds the linux-x86 managed libraries with the runtime's own build;
 3. builds OpenSSL 3.5 as static libraries for QNX, verified by its
    SHA-256 (`tools/qnx/openssl` holds its QNX target);
