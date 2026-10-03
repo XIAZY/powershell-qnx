@@ -3,9 +3,9 @@
 This guide builds an install tree of PowerShell for QNX Neutrino 6.5.0 on
 32-bit x86, cross-compiled on a Linux host. PowerShell runs on QNX on the
 Mono runtime from the QNX port of dotnet/runtime
-([XIAZY/runtime-qnx](https://github.com/XIAZY/runtime-qnx)). The .NET
-managed libraries are used unmodified, and PowerShell's own sources carry
-only the general fixes listed in
+([XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx)).
+The .NET managed libraries are used unmodified, and PowerShell's own sources
+carry only the general fixes listed in
 [docs/qnx](../qnx/README.md#changes-to-powershell-itself).
 
 For what works on QNX and how to run it, see [docs/qnx](../qnx/README.md).
@@ -41,9 +41,9 @@ SDP installation or over ssh from a QNX 6.5.0 machine that has the
 self-hosted SDP installed:
 
 ```sh
-git clone -b release/10.0 https://github.com/XIAZY/runtime-qnx.git
-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs /path/to/qnx650-sdp
-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs ssh:root@my-qnx-machine
+git clone -b release/10.0 https://github.com/XIAZY/dotnet-runtime-qnx.git
+dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs /path/to/qnx650-sdp
+dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs ssh:root@my-qnx-machine
 ```
 
 ## Build
