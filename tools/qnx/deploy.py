@@ -72,9 +72,15 @@ def main():
         os.makedirs(appdir, exist_ok=True)
         srcdir = os.path.dirname(os.path.abspath(program))
         if args.tree:
+            # Links to absolute paths point into the Linux system the
+            # package was made for (libcrypto.so.1.0.0 -> /lib64/...): dead on
+            # QNX, and a FAT file system (BlackBerry 10's SD card) cannot hold
+            # them, so they are left out.
             shutil.copytree(srcdir, appdir, dirs_exist_ok=True, symlinks=True,
                             ignore=lambda d, names: [n for n in names
-                                                     if d == srcdir and n == "runtimes"])
+                                                     if (d == srcdir and n == "runtimes")
+                                                     or (os.path.islink(os.path.join(d, n))
+                                                         and os.path.isabs(os.readlink(os.path.join(d, n))))])
         for dll in glob.glob(os.path.join(srcdir, "*.dll")):
             shutil.copy2(dll, appdir)
         # RID-specific assemblies replace the portable ones, the most specific last.
