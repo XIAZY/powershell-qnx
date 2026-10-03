@@ -2,8 +2,8 @@
 # Licensed under the MIT License.
 #
 # Builds libpsl-native for QNX Neutrino with the QNX toolchain of the runtime
-# (eng/native/qnx/toolchain.cmake in runtime-qnx), as PowerShell-Native builds
-# its libpsl-native with CMake.
+# (eng/native/qnx/toolchain.cmake in dotnet-runtime-qnx), as PowerShell-Native
+# builds its libpsl-native with CMake.
 cmake_minimum_required(VERSION 3.20)
 project(psl-native C)
 

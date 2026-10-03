@@ -11,8 +11,8 @@ or its releases, and you need your own licensed copy to build.
 ## How it works
 
 - **Runtime:** Mono, from the QNX port of dotnet/runtime
-  ([XIAZY/runtime-qnx](https://github.com/XIAZY/runtime-qnx)), branch
-  `release/10.0`. The port adds QNX as a host for Mono and System.Native;
+  ([XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx)),
+  branch `release/10.0`. The port adds QNX as a host for Mono and System.Native;
   the managed libraries are .NET's linux-x86 libraries, unmodified.
 - **Launcher:** `qnxhost`, from the runtime, replaces the `dotnet` host,
   which QNX cannot run. `pwsh/pwsh` is a copy of it: run under that name, it
