@@ -1,7 +1,9 @@
-# PowerShell on QNX Neutrino 6.5.0 (x86)
+# PowerShell on QNX Neutrino 6.5.0 (x86) and BlackBerry 10 (ARM)
 
-PowerShell 7.6 runs on QNX Neutrino 6.5.0 on 32-bit x86. This page describes
-how it is put together, how to run it, and what does and does not work. To
+PowerShell 7.6 runs on QNX Neutrino 6.5.0 on 32-bit x86, and on BlackBerry
+10 (QNX on 32-bit ARMv7; see [BlackBerry 10](#blackberry-10)). This page
+describes how it is put together, how to run it, and what does and does not
+work. To
 build it, see [docs/building/qnx.md](../building/qnx.md).
 
 The QNX SDP 6.5.0 headers and libraries the build links against are
@@ -212,6 +214,35 @@ What can still delete names, and how to avoid it:
   Prefer anonymous pipes or loopback TCP. If a name must be deleted, delete
   it while the socket is still open (`NamedPipeServerStream` already does);
   this makes the hang rarer, not impossible.
+
+## BlackBerry 10
+
+PowerShell also runs on BlackBerry 10, BlackBerry's QNX on 32-bit ARMv7,
+with the same runtime port built for ARM (`-os qnx -arch arm`) and .NET's
+linux-arm managed libraries. Everything above applies, except as listed
+here. The measurements are from a BlackBerry 10 phone (4 Krait cores at
+2.26 GHz).
+
+- **Starting:** `pwsh -Command '$PSVersionTable'` takes about 4.4 s from
+  process start to the first command, with the sixteen libraries compiled
+  ahead of time (about 15.6 s with the JIT alone). The images take about
+  38 MB on disk; only the pages used take memory.
+- **Where it can run:** not from the SD card, which is mounted without
+  execute permission: the install tree, or at least its programs, native
+  libraries and AOT images, must be on internal storage. Assemblies can be
+  read from the card.
+
+| Feature | On BlackBerry 10 | Why | Instead |
+|---|---|---|---|
+| IPv6 | Works, with dual-mode sockets | BlackBerry 10's network stack has IPv6 | |
+| `FileSystemWatcher`, `Get-Content -Wait` | Work with the system's inotify: no polling delay | BlackBerry 10's libc has inotify | |
+| Time zone | The system's zone (an IANA name such as `Europe/Amsterdam`) is used when `TZ` is unset; a zone name in `TZ` also works for the system's own programs | BlackBerry 10's libc reads zone names | |
+| `Get-Process` | Lists only the user's own processes | A process that is not root cannot read other processes' details (`/proc/<pid>/as` is root-only); `pidin` shows the same | — (a platform restriction) |
+| `Process.Modules` after an upgrade | The names of loaded modules other than the main module can show a deleted file's path until a reboot; the main module, `$PSHOME` and the process path are right | The process manager keeps names cached for reused files | Reboot after upgrading |
+| Starting right after an upgrade in place | If `pwsh` itself fails to start right after its files were replaced, a reboot fixes it; the runtime guards the libraries and assemblies it loads | BlackBerry 10 can run or map a newly written file with the cached contents of a deleted one (see the runtime's QNX design note) | Reboot |
+| `Test-Connection`, `System.Net.NetworkInformation.Ping` | Fail with `PingException` | Without root, .NET runs the system's `ping`, which ordinary users cannot execute on BlackBerry 10, and PowerShell cannot run as root there (root's loader refuses programs from outside the system) | `Test-Connection <host> -TcpPort <port>`, which connects over TCP |
+| Tests and scripts that use `id`, `/usr/bin/ping` | Fail: not available to ordinary users, or not installed | BlackBerry 10 has a reduced set of system programs | `[Environment]::UserName`, the .NET APIs |
+| SSH remoting | Not available as a client | BlackBerry 10 has no `ssh` client, which SSH remoting runs; the PowerShell side is the same as on QNX 6.5, where it works | An `ssh` client installed separately |
 
 ## Changes to PowerShell itself
 

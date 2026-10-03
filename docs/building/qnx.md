@@ -1,7 +1,8 @@
-# Build PowerShell for QNX Neutrino 6.5.0 (x86)
+# Build PowerShell for QNX Neutrino 6.5.0 (x86) and BlackBerry 10 (ARM)
 
 This guide builds an install tree of PowerShell for QNX Neutrino 6.5.0 on
-32-bit x86, cross-compiled on a Linux host. PowerShell runs on QNX on the
+32-bit x86, cross-compiled on a Linux host; the last part covers BlackBerry
+10, QNX on 32-bit ARM. PowerShell runs on QNX on the
 Mono runtime from the QNX port of dotnet/runtime
 ([XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx)).
 The .NET managed libraries are used unmodified, and PowerShell's own sources
@@ -85,6 +86,46 @@ directory can be given as the script's argument.
 Without `pwsh` on the build host, `PWSH_SOURCE=release tools/qnx/build.sh`
 uses the official framework-dependent release of PowerShell 7.6.6 instead,
 verified by its SHA-256. The managed code is the same.
+
+## BlackBerry 10 (ARM)
+
+The same script builds for BlackBerry 10 with `QNX_ARCH=arm`. Instead of the
+QNX SDP, it needs the BlackBerry 10 Native SDK, which is also proprietary to
+BlackBerry: you need your own copy, and nothing from it is distributed here.
+
+Make the ARM rootfs from the SDK (the directory that holds `target/qnx6`).
+The runtime's script also builds LLVM compiler-rt's builtins into it, since
+the SDK has no libgcc, so it needs clang, cmake, ninja and git on the host
+(or run it in a container that has them):
+
+```sh
+dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh --arch arm /path/to/bb10-rootfs /path/to/bb10-sdk
+```
+
+Then:
+
+```sh
+export QNX_ARCH=arm QNX_ROOTFS=/path/to/bb10-rootfs
+tools/qnx/build.sh
+```
+
+What differs from the x86 build:
+- the managed libraries are the runtime's linux-arm build, cross-built
+  against the linux-arm root filesystem that dotnet/runtime itself uses (its
+  `azurelinux-3.0-net10.0-cross-arm` build image, pinned by digest; only its
+  files are used, so the host needs no ARM emulation);
+- OpenSSL is built for ARMv7 without assembly (`tools/qnx/openssl/bb10-armv7.conf`
+  says why);
+- Mono, the native libraries, `libpsl-native`, the AOT cross compiler
+  (`armv7-unknown-nto-qnx6.5.0eabi`) and the AOT images are built for ARM.
+
+The result is `out/qnx/powershell-7.6.6-qnx-arm.tar.gz`. BlackBerry 10 has
+no `gzip`: unpack the archive elsewhere, or decompress it to a `.tar` first.
+Programs cannot run from the SD card, which is mounted without execute
+permission, so the tree goes to internal storage (`install.sh --prefix
+<dir> --bindir <dir>` with directories you can write, or `./pwsh/pwsh` from
+the unpacked tree). See [docs/qnx](../qnx/README.md#blackberry-10) for what
+differs at run time.
 
 ## Why the managed libraries are Linux's
 
