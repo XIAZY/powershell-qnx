@@ -2,14 +2,14 @@
 # Copyright (c) Xia Zhongyang.
 # Licensed under the MIT License.
 
-"""Assemble a .NET install tree for QNX 6.5 x86 and write a program's props file.
+"""Assemble a .NET install tree for QNX (x86 or ARM) and write a program's props file.
 
     deploy.py --out DIR --framework FX --native DIR... --host QNXHOST PROGRAM.dll...
 
 Layout (relocatable; qnxhost expands $ROOT to the props file's directory,
 and the props file lives in the tree's root):
 
-    DIR/shared/   the linux-x86 managed framework, unmodified, and the
+    DIR/shared/   the linux-x86 or linux-arm managed framework, unmodified, and the
                   native libraries built for QNX (libcoreclr.so,
                   libSystem.Native.so, libSystem.IO.Compression.Native.so)
     DIR/<name>/   each program's files
@@ -18,7 +18,7 @@ and the props file lives in the tree's root):
 
 The props file holds what the dotnet host would give the runtime: the
 trusted assemblies (framework plus program), the native library search
-path, the base directory, RUNTIME_IDENTIFIER=linux-x86 (the managed
+path, the base directory, RUNTIME_IDENTIFIER=linux-x86 or linux-arm (the managed
 libraries are the Linux ones), and the configProperties of the program's
 runtimeconfig.json.
 """
@@ -30,15 +30,16 @@ import shutil
 
 QNX_NATIVE = ("libcoreclr.so", "libSystem.Native.so", "libSystem.IO.Compression.Native.so")
 
-# The RIDs whose runtimes/<rid>/lib assemblies apply, most specific first, as
-# the dotnet host would pick them for linux-x86.
-RID_FALLBACKS = ("linux-x86", "linux", "unix")
+# The RIDs whose runtimes/<rid>/lib assemblies apply after the tree's own
+# (--rid), most specific first, as the dotnet host would pick them.
+RID_FALLBACKS = ("linux", "unix")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--framework", required=True, help="directory of the linux-x86 managed framework")
+    ap.add_argument("--framework", required=True, help="directory of the managed framework (linux-x86 or linux-arm)")
+    ap.add_argument("--rid", default="linux-x86", help="the framework's runtime identifier: linux-x86 (default) or linux-arm")
     ap.add_argument("--native", nargs="+", required=True, help="QNX-built native libraries")
     ap.add_argument("--host", required=True, help="qnxhost built for QNX")
     ap.add_argument("--tree", action="store_true",
@@ -77,7 +78,7 @@ def main():
         for dll in glob.glob(os.path.join(srcdir, "*.dll")):
             shutil.copy2(dll, appdir)
         # RID-specific assemblies replace the portable ones, the most specific last.
-        for rid in reversed(RID_FALLBACKS):
+        for rid in reversed((args.rid,) + RID_FALLBACKS):
             for dll in sorted(glob.glob(os.path.join(srcdir, "runtimes", rid, "lib", "*", "*.dll"))):
                 shutil.copy2(dll, appdir)
         own = sorted(os.path.basename(p) for p in glob.glob(os.path.join(appdir, "*.dll")))
@@ -105,7 +106,7 @@ def main():
             "TRUSTED_PLATFORM_ASSEMBLIES=" + ":".join(tpa),
             f"NATIVE_DLL_SEARCH_DIRECTORIES=$ROOT/{name}/:$ROOT/shared/",
             f"APP_CONTEXT_BASE_DIRECTORY=$ROOT/{name}/",
-            "RUNTIME_IDENTIFIER=linux-x86",
+            f"RUNTIME_IDENTIFIER={args.rid}",
             "System.Globalization.Invariant=true",
             # Culture names (en-US, de-DE) are accepted and behave like the
             # invariant culture, instead of throwing: QNX has no ICU data, and
