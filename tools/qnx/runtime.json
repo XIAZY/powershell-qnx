@@ -1,5 +1,5 @@
 {
   "repository": "https://github.com/XIAZY/dotnet-runtime-qnx.git",
-  "ref": "v10.0.12",
-  "commit": "9a4d56180b178a08a4ff07df442e382338f1a0b2"
+  "ref": "release/10.0",
+  "commit": "cf203a2f133861f67a506cbed29f6cfd7cc636b0"
 }
