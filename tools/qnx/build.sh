@@ -48,10 +48,12 @@ tz_version=2026e
 tzdata_sha256=b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
 tzcode_sha256=cc3d27ca2a0d8399504551b920970d80af83bfb9c216e8082a15491921935d54
 
-read -r runtime_repo runtime_tag runtime_commit < <(python3 -c '
+# runtime.json pins the runtime by commit; "ref" is the branch or tag that
+# holds it.
+read -r runtime_repo runtime_ref runtime_commit < <(python3 -c '
 import json, sys
 p = json.load(open(sys.argv[1]))
-print(p["repository"], p["tag"], p["commit"])' "$qnx/runtime.json")
+print(p["repository"], p["ref"], p["commit"])' "$qnx/runtime.json")
 
 # Per architecture: the runtime identifier of the managed libraries, the AOT
 # cross compiler's triple, and the OpenSSL target.
@@ -114,13 +116,16 @@ mkdir -p "$out/.home"
 if [[ -n ${RUNTIME_DIR:-} ]]; then
 	step "runtime from $runtime ($(git -C "$runtime" log --oneline -1))"
 else
-	step "runtime $runtime_tag from $runtime_repo"
+	step "runtime $runtime_commit ($runtime_ref) from $runtime_repo"
 	if [[ ! -d $runtime ]]; then
-		git clone -q --depth 1 -b "$runtime_tag" "$runtime_repo" "$runtime"
+		# Only the pinned commit, which need not be the ref's tip.
+		git init -q "$runtime"
+		git -C "$runtime" fetch -q --depth 1 "$runtime_repo" "$runtime_commit"
+		git -C "$runtime" -c advice.detachedHead=false checkout -q FETCH_HEAD
 	fi
 	actual=$(git -C "$runtime" rev-parse HEAD)
 	if [[ $actual != "$runtime_commit"* ]]; then
-		echo "build.sh: $runtime_tag is $actual, not the pinned $runtime_commit" >&2
+		echo "build.sh: $runtime is at $actual, not the pinned $runtime_commit" >&2
 		exit 2
 	fi
 fi
