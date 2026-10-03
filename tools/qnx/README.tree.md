@@ -2,8 +2,9 @@
 
 This is an install tree of PowerShell 7.6.6 for QNX Neutrino 6.5.0 on 32-bit
 x86, built from [XIAZY/powershell-qnx](https://github.com/XIAZY/powershell-qnx)
-on the Mono runtime from [XIAZY/runtime-qnx](https://github.com/XIAZY/runtime-qnx).
-It is not an official PowerShell release.
+on the Mono runtime from
+[XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx). It is
+not an official PowerShell release.
 
 ## Install
 
