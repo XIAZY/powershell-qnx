@@ -1,7 +1,8 @@
-# PowerShell 7.6.6 for QNX Neutrino 6.5.0 (x86)
+# PowerShell 7.6.6 for QNX Neutrino
 
-This is an install tree of PowerShell 7.6.6 for QNX Neutrino 6.5.0 on 32-bit
-x86, built from [XIAZY/powershell-qnx](https://github.com/XIAZY/powershell-qnx)
+This is an install tree of PowerShell 7.6.6 for QNX Neutrino, either 6.5.0
+on 32-bit x86 or BlackBerry 10 on 32-bit ARM (the archive's name says which),
+built from [XIAZY/powershell-qnx](https://github.com/XIAZY/powershell-qnx)
 on the Mono runtime from
 [XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx). It is
 not an official PowerShell release.
@@ -29,8 +30,11 @@ pwsh -Command 'Get-Date'      # one command
 pwsh -File script.ps1
 ```
 
-The first start after a boot, or after heavy disk activity, takes about
-2.4 s, while the files are read from disk; later starts take under a second.
+On x86, the first start after a boot, or after heavy disk activity, takes
+about 2.4 s, while the files are read from disk; later starts take under a
+second. On BlackBerry 10 a start takes about 4.4 s. There, the tree must be
+on internal storage (the SD card is mounted without execute permission), so
+install with `--prefix` and `--bindir` set to directories you can write.
 
 ## Settings
 
@@ -51,5 +55,6 @@ What works, what doesn't and why, SSH remoting, and how the port is put
 together: [docs/qnx](https://github.com/XIAZY/powershell-qnx/blob/release/v7.6.6/docs/qnx/README.md).
 
 PowerShell is licensed under the MIT License (`pwsh/LICENSE.txt`). This tree
-was built against the QNX SDP 6.5.0, which is proprietary to BlackBerry QNX;
-redistributing it is subject to your QNX licence.
+was built against the QNX SDP 6.5.0 (x86) or the BlackBerry 10 Native SDK
+(ARM), which are proprietary to BlackBerry; redistributing it is subject to
+your licence for them.

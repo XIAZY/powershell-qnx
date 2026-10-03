@@ -2,7 +2,7 @@
 # Copyright (c) Xia Zhongyang.
 # Licensed under the MIT License.
 #
-# Installs PowerShell on QNX Neutrino 6.5.0 from an install tree made by
+# Installs PowerShell on QNX Neutrino from an install tree made by
 # tools/qnx/build.sh, which places this script at the top of the tree.
 #
 # Usage: install.sh [options]
