@@ -191,6 +191,9 @@ if [[ ! -f $openssl_out/lib/libcrypto.a ]]; then
 	# which OpenSSL's self-pinning dereferences; there is no shared library to
 	# pin. Only the static libraries and headers are built and installed.
 	# ARM: no-asm, and only the libraries (see tools/qnx/openssl/bb10-armv7.conf).
+	# The generated headers come first, in a make of their own: in one parallel
+	# make with the libraries nothing orders them before the objects, which then
+	# compile against the rootfs's OpenSSL 1.0 headers and fail.
 	if [[ $arch == x86 ]]; then
 		in_container sh -c "
 			cd openssl-build &&
@@ -204,7 +207,8 @@ if [[ ! -f $openssl_out/lib/libcrypto.a ]]; then
 			perl ../openssl-$openssl_version/Configure $openssl_target --config=/repo/tools/qnx/openssl/$openssl_target.conf \
 				--prefix=/out/openssl-qnx-$arch --libdir=lib --openssldir=/etc/ssl \
 				no-shared no-module no-pinshared no-async no-asm no-tests no-docs AR=llvm-ar RANLIB=llvm-ranlib >/dev/null &&
-			make -j $jobs build_generated libcrypto.a libssl.a >/dev/null &&
+			make build_generated >/dev/null &&
+			make -j $jobs libcrypto.a libssl.a >/dev/null &&
 			mkdir -p /out/openssl-qnx-$arch/lib /out/openssl-qnx-$arch/include/openssl &&
 			cp libcrypto.a libssl.a /out/openssl-qnx-$arch/lib/ &&
 			cp ../openssl-$openssl_version/include/openssl/*.h include/openssl/*.h /out/openssl-qnx-$arch/include/openssl/"
