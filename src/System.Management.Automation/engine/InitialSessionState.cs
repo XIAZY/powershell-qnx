@@ -4101,11 +4101,17 @@ $RawUI.SetBufferContents(
             }
             else
             {
-                // Porting note: non-Windows platforms use `clear`
+                // Porting note: non-Windows platforms use `clear`, or, where there is
+                // no `clear` (BlackBerry 10 ships none), the sequences it writes for
+                // an ANSI terminal: erase the display and the scrollback, then home
+                // the cursor.
                 return @"
-[Console]::Write((
-    & (Get-Command -CommandType Application clear | Select-Object -First 1).Definition
-))
+$clear = Get-Command -CommandType Application clear -ErrorAction Ignore | Select-Object -First 1
+if ($clear) {
+    [Console]::Write((& $clear.Definition))
+} else {
+    [Console]::Write(""`e[2J`e[3J`e[H"")
+}
 # .Link
 # https://go.microsoft.com/fwlink/?LinkID=2096480
 # .ExternalHelp System.Management.Automation.dll-help.xml
