@@ -318,6 +318,23 @@ cp "$out/$cacert" "$tree/etc/ssl/cert.pem"
 cp -R "$out/zoneinfo" "$tree/etc/zoneinfo"
 cp "$qnx/install.sh" "$tree/install.sh"
 cp "$qnx/README.tree.md" "$tree/README.md"
+# The licences of what the tree holds besides PowerShell, whose own are in
+# pwsh/: the .NET runtime (its notices cover zlib-ng and LLVM's compiler-rt,
+# which are linked in), OpenSSL, which is linked statically, and the CA
+# bundle, which has Mozilla's licence. The time zone data is in the public
+# domain.
+mkdir -p "$tree/licenses/dotnet-runtime" "$tree/licenses/openssl" "$tree/licenses/ca-certificates"
+cp "$runtime/LICENSE.TXT" "$runtime/THIRD-PARTY-NOTICES.TXT" "$tree/licenses/dotnet-runtime/"
+tar xzf "$out/openssl-$openssl_version.tar.gz" -O "openssl-$openssl_version/LICENSE.txt" > "$tree/licenses/openssl/LICENSE.txt"
+cat > "$tree/licenses/ca-certificates/NOTICE.txt" <<EOF
+etc/ssl/cert.pem is $cacert from https://curl.se/docs/caextract.html,
+unmodified: the certificates of Mozilla's root store (certdata.txt in
+Mozilla's source tree, named at the top of the file), converted to PEM by
+the curl project.
+
+It is subject to the terms of the Mozilla Public License, v. 2.0, as the
+Mozilla source file is. A copy of the MPL is at https://mozilla.org/MPL/2.0/.
+EOF
 
 step "AOT images"
 in_container sh /repo/tools/qnx/aot.sh /out/aot-cross-$arch/mono/mini/mono-aot-cross /out/powershell-qnx-$arch /out/aot-logs-$arch
