@@ -54,7 +54,11 @@ PowerShell to change one.
 What works, what doesn't and why, SSH remoting, and how the port is put
 together: [docs/qnx](https://github.com/XIAZY/powershell-qnx/blob/release/v7.6.6/docs/qnx/README.md).
 
-PowerShell is licensed under the MIT License (`pwsh/LICENSE.txt`). This tree
+PowerShell is licensed under the MIT License (`pwsh/LICENSE.txt`, with its
+third-party notices beside it). `licenses` has the licences of the other
+parts: the .NET runtime (MIT, with its third-party notices), OpenSSL
+(Apache License 2.0), which is linked into the cryptography library, and the
+CA certificates in `etc/ssl/cert.pem` (Mozilla Public License 2.0). This tree
 was built against the QNX SDP 6.5.0 (x86) or the BlackBerry 10 Native SDK
 (ARM), which are proprietary to BlackBerry; redistributing it is subject to
 your licence for them.
