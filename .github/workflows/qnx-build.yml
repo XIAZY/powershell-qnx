@@ -1,0 +1,165 @@
+# Copyright (c) Xia Zhongyang.
+# Licensed under the MIT License.
+#
+# Builds PowerShell for BlackBerry 10 (QNX, ARM) with tools/qnx/build.sh, as
+# docs/building/qnx.md describes. For a version tag it also puts the archive
+# and its SHA-256 on a draft release, to be published once that file has
+# passed its test on a device.
+#
+# The BlackBerry 10 Native SDK's headers and libraries come from the
+# blackberry10-toolchain image, which assembles them from the archived SDK.
+# QNX 6.5.0 x86 is not built here: its rootfs needs the QNX SDP 6.5.0.
+name: QNX-Build
+
+run-name: "${{ github.ref_name }} - ${{ github.run_number }}"
+
+on:
+  # Manual runs need the workflow on the default branch, which is upstream's
+  # master here, so the release branches build on every push, and a ci/
+  # branch tries a change to the build before it goes on one.
+  push:
+    branches:
+      - release/**
+      - ci/**
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - release/**
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ contains(github.ref, 'merge')}}
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+  # blackberry10-toolchain:latest, BlackBerry 10 Native SDK 10.3.1.995
+  BB10_SDK_IMAGE: ghcr.io/xiazy/blackberry10-toolchain@sha256:e56e8572589d46d86f7be108d6d14cfe20a5097c46ac9c655edd042eecd437be
+
+jobs:
+  bb10_arm:
+    name: BlackBerry 10 (ARM)
+    # arm64 is the host the port is developed on; docs/building/qnx.md has
+    # what an x64 host needs.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 345
+    steps:
+      # The build needs about 40 GB; /mnt has the most room once the
+      # preinstalled toolchains the build does not use are gone.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/boost
+          docker system prune -af >/dev/null
+          df -h / /mnt
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clang lld llvm cmake ninja-build python3 curl git file
+          clang --version | head -n 1
+          command -v pwsh || {
+            echo "::error::pwsh is not on this runner; tools/qnx/build.sh builds PowerShell with it"
+            exit 1
+          }
+
+      - name: BlackBerry 10 Native SDK
+        run: |
+          id=$(docker create "$BB10_SDK_IMAGE")
+          docker cp "$id:/opt/bb10-sdk" "$RUNNER_TEMP/bb10-sdk"
+          docker rm "$id" >/dev/null
+          docker rmi "$BB10_SDK_IMAGE" >/dev/null
+          test -f "$RUNNER_TEMP/bb10-sdk/target/qnx6/armle-v7/lib/crt1.o"
+
+      # The runtime checkout here is only for build-rootfs.sh; build.sh makes
+      # its own clone of the pin.
+      - name: ARM rootfs
+        run: |
+          read -r runtime_repo runtime_commit < <(python3 -c '
+          import json, sys
+          p = json.load(open(sys.argv[1]))
+          print(p["repository"], p["commit"])' tools/qnx/runtime.json)
+          git init -q "$RUNNER_TEMP/runtime-rootfs"
+          cd "$RUNNER_TEMP/runtime-rootfs"
+          git fetch -q --depth 1 "$runtime_repo" "$runtime_commit"
+          git checkout -q FETCH_HEAD
+          eng/native/qnx/build-rootfs.sh --arch arm "$RUNNER_TEMP/bb10-rootfs" "$RUNNER_TEMP/bb10-sdk"
+          cd / && rm -rf "$RUNNER_TEMP/runtime-rootfs" "$RUNNER_TEMP/bb10-sdk"
+
+      - name: Build
+        env:
+          QNX_ARCH: arm
+        run: |
+          sudo mkdir -p /mnt/qnx-out && sudo chown "$(id -u):$(id -g)" /mnt/qnx-out
+          QNX_ROOTFS="$RUNNER_TEMP/bb10-rootfs" tools/qnx/build.sh /mnt/qnx-out
+
+      - name: Disk space used
+        if: always()
+        run: df -h / /mnt
+
+      # What a release must not go out without: launchers for the phone, the
+      # licences, and no links, which would point into the build host.
+      - name: Check the archive
+        working-directory: /mnt/qnx-out
+        run: |
+          archive=$(ls powershell-*-qnx-arm.tar.gz)
+          mkdir check && tar xzf "$archive" -C check
+          for f in bin/qnxhost pwsh/pwsh; do
+            kind=$(file -b "check/$f")
+            echo "$f: $kind"
+            [[ $kind == "ELF 32-bit LSB executable, ARM, EABI5"* ]] || { echo "::error::$f is not an ARM program"; exit 1; }
+          done
+          for f in pwsh/LICENSE.txt pwsh/ThirdPartyNotices.txt \
+            licenses/dotnet-runtime/LICENSE.TXT licenses/dotnet-runtime/THIRD-PARTY-NOTICES.TXT \
+            licenses/openssl/LICENSE.txt licenses/ca-certificates/NOTICE.txt; do
+            test -s "check/$f" || { echo "::error::$f is missing from the archive or empty"; exit 1; }
+          done
+          links=$(find check -type l)
+          test -z "$links" || { echo "::error::the archive has symbolic links"; echo "$links"; exit 1; }
+          rm -rf check
+          sha256sum "$archive" | tee "$archive.sha256"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: powershell-qnx-arm
+          path: |
+            /mnt/qnx-out/powershell-*-qnx-arm.tar.gz
+            /mnt/qnx-out/powershell-*-qnx-arm.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: bb10_arm
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: powershell-qnx-arm
+          path: dist
+      # A file on a release never changes once it is there: an upload over an
+      # existing one fails.
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY"
