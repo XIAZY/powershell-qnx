@@ -14,10 +14,29 @@ For what works on QNX and how to run it, see [docs/qnx](../qnx/README.md).
 ## Licensing of the QNX parts
 
 Building for QNX needs the QNX Software Development Platform (SDP) 6.5.0
-headers and libraries (made into the "rootfs" below). **They are proprietary to BlackBerry
-QNX and are not part of this repository or of anything it publishes.**
-You need your own licensed copy of QNX SDP 6.5.0. The install tree you build
-links against it; distributing that tree is subject to your QNX licence.
+headers and libraries (made into the "rootfs" below). **They are proprietary
+to BlackBerry QNX and are not part of this repository.** A build takes them
+from an SDP you have, or from the
+[blackberry10-toolchain](https://github.com/XIAZY/blackberry10-toolchain)
+image, which extracts them from QNX's own installer of the SDP when the image
+is built ([below](#the-sdks-from-the-toolchain-image)). The install tree you
+build links against them, and QNX's licence for the SDP applies to it.
+
+## Built archives
+
+Each [release](https://github.com/XIAZY/powershell-qnx/releases) has the
+install tree for both systems, built by GitHub Actions from the release's tag
+(`.github/workflows/qnx-build.yml`) with the script this guide describes:
+
+- `powershell-<version>-qnx-x86.tar.gz`, for QNX Neutrino 6.5.0 on x86;
+- `powershell-<version>-qnx-arm.tar.gz`, for BlackBerry 10;
+- `<archive>.sha256` beside each;
+- `powershell-qnx.json`, which names both archives with their URL, size and
+  SHA-256. `https://github.com/XIAZY/powershell-qnx/releases/latest/download/powershell-qnx.json`
+  is always the newest release's.
+
+The files of a published release are never replaced: a change is a new
+release.
 
 ## Prerequisites
 
@@ -29,7 +48,7 @@ links against it; distributing that tree is subject to your QNX licence.
   - clang, ld.lld and the LLVM binutils, version 15 or later
   - for building PowerShell from source: [PowerShell](linux.md) (`pwsh`) on
     the build host; the script installs the .NET SDK it needs
-- A QNX 6.5.0 x86 rootfs made from your QNX SDP 6.5.0 (below).
+- A QNX 6.5.0 x86 rootfs made from QNX SDP 6.5.0 (below).
 - About 40 GB of disk space and two hours on a 6-core machine.
 
 ### The QNX rootfs
@@ -91,7 +110,8 @@ verified by its SHA-256. The managed code is the same.
 
 The same script builds for BlackBerry 10 with `QNX_ARCH=arm`. Instead of the
 QNX SDP, it needs the BlackBerry 10 Native SDK, which is also proprietary to
-BlackBerry: you need your own copy, and nothing from it is distributed here.
+BlackBerry and not part of this repository: use your own copy, or the one in
+the toolchain image ([below](#the-sdks-from-the-toolchain-image)).
 
 Make the ARM rootfs from the SDK (the directory that holds `target/qnx6`).
 The runtime's script also builds LLVM compiler-rt's builtins into it, since
@@ -126,6 +146,34 @@ permission, so the tree goes to internal storage (`install.sh --prefix
 <dir> --bindir <dir>` with directories you can write, or `./pwsh/pwsh` from
 the unpacked tree). See [docs/qnx](../qnx/README.md#blackberry-10) for what
 differs at run time.
+
+## The SDKs from the toolchain image
+
+The [blackberry10-toolchain](https://github.com/XIAZY/blackberry10-toolchain)
+image holds both SDKs: the BlackBerry 10 Native SDK in `/opt/bb10-sdk`, and
+QNX SDP 6.5.0's headers, x86 libraries and gcc start-up files in
+`/opt/qnx65-sdk`. The GitHub build takes them from there, and a local build
+can do the same. Only the files are used; nothing in the image is run.
+
+```sh
+id=$(docker create ghcr.io/xiazy/blackberry10-toolchain:latest)
+
+# BlackBerry 10: the SDK as build-rootfs.sh --arch arm takes it
+docker cp "$id:/opt/bb10-sdk" bb10-sdk
+dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh --arch arm /path/to/bb10-rootfs bb10-sdk
+
+# QNX 6.5.0: the image's files in the layout of an installed SDP
+docker cp "$id:/opt/qnx65-sdk" qnx65-sdk
+mkdir -p qnx650-sdp/target qnx650-sdp/host/linux
+mv qnx65-sdk/qnx6 qnx650-sdp/target/qnx6
+mv qnx65-sdk/x86 qnx650-sdp/host/linux/x86
+dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs qnx650-sdp
+
+docker rm "$id"
+```
+
+The workflow names the image by digest, so that a build does not change when
+the image does.
 
 ## Why the managed libraries are Linux's
 

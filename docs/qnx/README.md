@@ -6,9 +6,12 @@ describes how it is put together, how to run it, and what does and does not
 work. To
 build it, see [docs/building/qnx.md](../building/qnx.md).
 
-The QNX SDP 6.5.0 headers and libraries the build links against are
-proprietary to BlackBerry QNX: they are not distributed with this repository
-or its releases, and you need your own licensed copy to build.
+Built archives for both systems are on the
+[releases](https://github.com/XIAZY/powershell-qnx/releases) page, each with
+its SHA-256 beside it. The QNX SDP 6.5.0 and BlackBerry 10 Native SDK headers
+and libraries the build links against are proprietary to BlackBerry and are
+not in this repository; [docs/building/qnx.md](../building/qnx.md) says where
+a build takes them from.
 
 ## How it works
 
