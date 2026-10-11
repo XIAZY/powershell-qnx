@@ -3,8 +3,9 @@
 #
 # Builds PowerShell for QNX Neutrino 6.5.0 (x86) and for BlackBerry 10 (QNX,
 # ARM) with tools/qnx/build.sh, as docs/building/qnx.md describes. For a
-# version tag it also puts the archives and their SHA-256 on a draft release,
-# to be published once those files have passed their tests on the systems.
+# version tag it also puts the archives, their SHA-256 and a manifest of them
+# on a draft release, to be published once those files have passed their tests
+# on the systems. The files of a published release are never replaced.
 #
 # Both SDKs come from the blackberry10-toolchain image: the BlackBerry 10
 # Native SDK's headers and ARM libraries, which it assembles from the archived
@@ -190,3 +191,31 @@ jobs:
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$GITHUB_REF_NAME"
           gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY"
+      # powershell-qnx.json names the archives of this release, for programs
+      # that download them: releases/latest/download/powershell-qnx.json is
+      # always the newest published release's.
+      - name: Manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - > powershell-qnx.json <<'EOF'
+          import glob, hashlib, json, os, re
+          repo, tag = os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_REF_NAME"]
+          names = {"arm": "bb10-arm", "x86": "qnx65-x86"}
+          targets, version = {}, None
+          for path in sorted(glob.glob("dist/powershell-*-qnx-*.tar.gz")):
+              file = os.path.basename(path)
+              version, arch = re.fullmatch(r"powershell-(.+)-qnx-(.+)\.tar\.gz", file).groups()
+              data = open(path, "rb").read()
+              targets[names[arch]] = {
+                  "file": file,
+                  "url": "https://github.com/%s/releases/download/%s/%s" % (repo, tag, file),
+                  "size": len(data),
+                  "sha256": hashlib.sha256(data).hexdigest(),
+              }
+          if sorted(targets) != sorted(names.values()):
+              raise SystemExit("expected one archive for each of %s, found %s" % (sorted(names.values()), sorted(targets)))
+          print(json.dumps({"version": version, "tag": tag, "targets": targets}, indent=2))
+          EOF
+          cat powershell-qnx.json
+          gh release upload "$GITHUB_REF_NAME" powershell-qnx.json --repo "$GITHUB_REPOSITORY"
