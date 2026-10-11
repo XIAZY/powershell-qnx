@@ -1,14 +1,15 @@
 # Copyright (c) Xia Zhongyang.
 # Licensed under the MIT License.
 #
-# Builds PowerShell for BlackBerry 10 (QNX, ARM) with tools/qnx/build.sh, as
-# docs/building/qnx.md describes. For a version tag it also puts the archive
-# and its SHA-256 on a draft release, to be published once that file has
-# passed its test on a device.
+# Builds PowerShell for QNX Neutrino 6.5.0 (x86) and for BlackBerry 10 (QNX,
+# ARM) with tools/qnx/build.sh, as docs/building/qnx.md describes. For a
+# version tag it also puts the archives and their SHA-256 on a draft release,
+# to be published once those files have passed their tests on the systems.
 #
-# The BlackBerry 10 Native SDK's headers and libraries come from the
-# blackberry10-toolchain image, which assembles them from the archived SDK.
-# QNX 6.5.0 x86 is not built here: its rootfs needs the QNX SDP 6.5.0.
+# Both SDKs come from the blackberry10-toolchain image: the BlackBerry 10
+# Native SDK's headers and ARM libraries, which it assembles from the archived
+# SDK, and QNX SDP 6.5.0's headers, x86 libraries and gcc start-up files,
+# which it takes from QNX's installer.
 name: QNX-Build
 
 run-name: "${{ github.ref_name }} - ${{ github.run_number }}"
@@ -30,9 +31,10 @@ on:
       - "docs/**"
       - "*.md"
 
+# A newer push to a pull request or a ci/ branch replaces the run in progress.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ contains(github.ref, 'merge')}}
+  cancel-in-progress: ${{ contains(github.ref, 'merge') || startsWith(github.ref, 'refs/heads/ci/') }}
 
 permissions:
   contents: read
@@ -41,16 +43,30 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: 1
   POWERSHELL_TELEMETRY_OPTOUT: 1
-  # blackberry10-toolchain:latest, BlackBerry 10 Native SDK 10.3.1.995
-  BB10_SDK_IMAGE: ghcr.io/xiazy/blackberry10-toolchain@sha256:e56e8572589d46d86f7be108d6d14cfe20a5097c46ac9c655edd042eecd437be
+  # blackberry10-toolchain:latest of 11 October 2026: BlackBerry 10 Native SDK
+  # 10.3.1.995 and QNX SDP 6.5.0
+  SDK_IMAGE: ghcr.io/xiazy/blackberry10-toolchain@sha256:60ce49510a37ed92368cca010bbaabf97b12d209b9fab179e8491b266bb2578f
 
 jobs:
-  bb10_arm:
-    name: BlackBerry 10 (ARM)
-    # arm64 is the host the port is developed on; docs/building/qnx.md has
-    # what an x64 host needs.
-    runs-on: ubuntu-24.04-arm
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # arm64 is the host the port is developed on.
+          - arch: arm
+            name: BlackBerry 10 (ARM)
+            runner: ubuntu-24.04-arm
+            launcher: "ELF 32-bit LSB executable, ARM, EABI5"
+          - arch: x86
+            name: QNX 6.5.0 (x86)
+            runner: ubuntu-24.04
+            launcher: "ELF 32-bit LSB executable, Intel 80386"
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 345
+    env:
+      QNX_ARCH: ${{ matrix.arch }}
     steps:
       # The build needs about 40 GB; /mnt has the most room once the
       # preinstalled toolchains the build does not use are gone.
@@ -77,17 +93,27 @@ jobs:
             exit 1
           }
 
-      - name: BlackBerry 10 Native SDK
+      # The SDK as build-rootfs.sh expects it. For x86 that is the layout of
+      # an installed QNX SDP: target/qnx6, and gcc's files under host/<host>.
+      - name: SDK
         run: |
-          id=$(docker create "$BB10_SDK_IMAGE")
-          docker cp "$id:/opt/bb10-sdk" "$RUNNER_TEMP/bb10-sdk"
+          id=$(docker create "$SDK_IMAGE")
+          if [[ $QNX_ARCH == arm ]]; then
+            docker cp "$id:/opt/bb10-sdk" "$RUNNER_TEMP/sdk"
+            test -f "$RUNNER_TEMP/sdk/target/qnx6/armle-v7/lib/crt1.o"
+          else
+            docker cp "$id:/opt/qnx65-sdk" "$RUNNER_TEMP/qnx65-sdk"
+            mkdir -p "$RUNNER_TEMP/sdk/target" "$RUNNER_TEMP/sdk/host/linux"
+            mv "$RUNNER_TEMP/qnx65-sdk/qnx6" "$RUNNER_TEMP/sdk/target/qnx6"
+            mv "$RUNNER_TEMP/qnx65-sdk/x86" "$RUNNER_TEMP/sdk/host/linux/x86"
+            test -f "$RUNNER_TEMP/sdk/target/qnx6/x86/lib/crt1.o"
+          fi
           docker rm "$id" >/dev/null
-          docker rmi "$BB10_SDK_IMAGE" >/dev/null
-          test -f "$RUNNER_TEMP/bb10-sdk/target/qnx6/armle-v7/lib/crt1.o"
+          docker rmi "$SDK_IMAGE" >/dev/null
 
       # The runtime checkout here is only for build-rootfs.sh; build.sh makes
       # its own clone of the pin.
-      - name: ARM rootfs
+      - name: Rootfs
         run: |
           read -r runtime_repo runtime_commit < <(python3 -c '
           import json, sys
@@ -97,31 +123,31 @@ jobs:
           cd "$RUNNER_TEMP/runtime-rootfs"
           git fetch -q --depth 1 "$runtime_repo" "$runtime_commit"
           git checkout -q FETCH_HEAD
-          eng/native/qnx/build-rootfs.sh --arch arm "$RUNNER_TEMP/bb10-rootfs" "$RUNNER_TEMP/bb10-sdk"
-          cd / && rm -rf "$RUNNER_TEMP/runtime-rootfs" "$RUNNER_TEMP/bb10-sdk"
+          eng/native/qnx/build-rootfs.sh --arch "$QNX_ARCH" "$RUNNER_TEMP/rootfs" "$RUNNER_TEMP/sdk"
+          cd / && rm -rf "$RUNNER_TEMP/runtime-rootfs" "$RUNNER_TEMP/sdk"
 
       - name: Build
-        env:
-          QNX_ARCH: arm
         run: |
           sudo mkdir -p /mnt/qnx-out && sudo chown "$(id -u):$(id -g)" /mnt/qnx-out
-          QNX_ROOTFS="$RUNNER_TEMP/bb10-rootfs" tools/qnx/build.sh /mnt/qnx-out
+          QNX_ROOTFS="$RUNNER_TEMP/rootfs" tools/qnx/build.sh /mnt/qnx-out
 
       - name: Disk space used
         if: always()
         run: df -h / /mnt
 
-      # What a release must not go out without: launchers for the phone, the
+      # What a release must not go out without: launchers for the target, the
       # licences, and no links, which would point into the build host.
       - name: Check the archive
         working-directory: /mnt/qnx-out
+        env:
+          LAUNCHER: ${{ matrix.launcher }}
         run: |
-          archive=$(ls powershell-*-qnx-arm.tar.gz)
+          archive=$(ls powershell-*-qnx-"$QNX_ARCH".tar.gz)
           mkdir check && tar xzf "$archive" -C check
           for f in bin/qnxhost pwsh/pwsh; do
             kind=$(file -b "check/$f")
             echo "$f: $kind"
-            [[ $kind == "ELF 32-bit LSB executable, ARM, EABI5"* ]] || { echo "::error::$f is not an ARM program"; exit 1; }
+            [[ $kind == "$LAUNCHER"* ]] || { echo "::error::$f is not a program for this target"; exit 1; }
           done
           for f in pwsh/LICENSE.txt pwsh/ThirdPartyNotices.txt \
             licenses/dotnet-runtime/LICENSE.TXT licenses/dotnet-runtime/THIRD-PARTY-NOTICES.TXT \
@@ -136,23 +162,24 @@ jobs:
       - name: Upload archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: powershell-qnx-arm
+          name: powershell-qnx-${{ matrix.arch }}
           path: |
-            /mnt/qnx-out/powershell-*-qnx-arm.tar.gz
-            /mnt/qnx-out/powershell-*-qnx-arm.tar.gz.sha256
+            /mnt/qnx-out/powershell-*-qnx-${{ matrix.arch }}.tar.gz
+            /mnt/qnx-out/powershell-*-qnx-${{ matrix.arch }}.tar.gz.sha256
           if-no-files-found: error
 
   release:
     name: Draft release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: bb10_arm
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: powershell-qnx-arm
+          pattern: powershell-qnx-*
+          merge-multiple: true
           path: dist
       # A file on a release never changes once it is there: an upload over an
       # existing one fails.
