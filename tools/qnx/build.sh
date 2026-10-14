@@ -81,6 +81,14 @@ esac
 
 step() { printf '\n== %s\n' "$*"; }
 
+# NuGet's audit is off in every build here: an advisory published after a
+# release against a package that release uses would otherwise fail its build
+# (NU1902 and NU1903 as errors), the runtime's through its build tooling and
+# PowerShell's through its own references. The packages are the releases'
+# own, as upstream ships them. The runtime's builds take -p:NuGetAudit=false,
+# PowerShell's build the environment.
+export NuGetAudit=false
+
 # Runs one step of the build with its output in $out/logs/<name>.log; if the
 # step fails, shows the end of that log, so that a build log says why.
 logged() {
@@ -178,8 +186,6 @@ else
 fi
 
 step "$rid managed libraries (the runtime's own build, unmodified managed code)"
-# NuGetAudit: advisories published after the release against the build's own
-# tooling packages would otherwise fail the build (NU1903 as an error).
 pack=$runtime/artifacts/bin/microsoft.netcore.app.runtime.$rid/Release/runtimes/$rid
 if [[ ! -f $pack/native/System.Private.CoreLib.dll ]]; then
 	docker run --rm --user "$uid" -e HOME=/out/.home -e ROOTFS_DIR=$linux_rootfs_mount \
@@ -231,7 +237,7 @@ fi
 step "Mono, qnxhost and the native libraries for QNX (the runtime's build -os qnx)"
 mono_qnx=$runtime/artifacts/bin/mono/qnx.$arch.Release
 native_qnx=$runtime/artifacts/bin/native/net10.0-qnx-Release-$arch
-logged runtime-qnx in_container sh -c "cd runtime && ./build.sh -os qnx -arch $arch -cross -c Release -subset mono.runtime+libs.native \
+logged runtime-qnx in_container sh -c "cd runtime && ./build.sh -os qnx -arch $arch -cross -c Release -subset mono.runtime+libs.native -p:NuGetAudit=false \
 	-cmakeargs '-DOPENSSL_ROOT_DIR=/out/openssl-qnx-$arch -DOPENSSL_INCLUDE_DIR=/out/openssl-qnx-$arch/include \
 		-DOPENSSL_CRYPTO_LIBRARY=/out/openssl-qnx-$arch/lib/libcrypto.a -DOPENSSL_SSL_LIBRARY=/out/openssl-qnx-$arch/lib/libssl.a'"
 
