@@ -37,9 +37,9 @@ jobs=${JOBS:-$(nproc)}
 uid=$(id -u):$(id -g)
 runtime=${RUNTIME_DIR:-$out/runtime}
 
-pwsh_version=7.6.6
+pwsh_version=7.6.7
 pwsh_release_url=https://github.com/PowerShell/PowerShell/releases/download/v$pwsh_version/powershell-$pwsh_version-linux-x64-fxdependent.tar.gz
-pwsh_release_sha256=7e851d01dba116269d1e7f4505ef7b54bfa6c0b5b08965b67ac229503154a9da
+pwsh_release_sha256=0c87e8e10898fb42694e4dcea1ee2b9420607836b6b8502c895d942e91cc34bd
 openssl_version=3.5.9
 openssl_sha256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
 cacert=cacert-2026-09-25.pem

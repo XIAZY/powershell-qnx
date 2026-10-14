@@ -1,6 +1,6 @@
-# PowerShell 7.6.6 for QNX Neutrino
+# PowerShell 7.6.7 for QNX Neutrino
 
-This is an install tree of PowerShell 7.6.6 for QNX Neutrino, either 6.5.0
+This is an install tree of PowerShell 7.6.7 for QNX Neutrino, either 6.5.0
 on 32-bit x86 or BlackBerry 10 on 32-bit ARM (the archive's name says which),
 built from [XIAZY/powershell-qnx](https://github.com/XIAZY/powershell-qnx)
 on the Mono runtime from
@@ -52,7 +52,7 @@ PowerShell to change one.
 ## More
 
 What works, what doesn't and why, SSH remoting, and how the port is put
-together: [docs/qnx](https://github.com/XIAZY/powershell-qnx/blob/release/v7.6.6/docs/qnx/README.md).
+together: [docs/qnx](https://github.com/XIAZY/powershell-qnx/blob/release/v7.6.7/docs/qnx/README.md).
 
 PowerShell is licensed under the MIT License (`pwsh/LICENSE.txt`, with its
 third-party notices beside it). `licenses` has the licences of the other

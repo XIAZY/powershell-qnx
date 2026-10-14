@@ -69,7 +69,7 @@ dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs ssh:root@m
 ## Build
 
 ```sh
-git clone -b release/v7.6.6 https://github.com/XIAZY/powershell-qnx.git
+git clone -b release/v7.6.7 https://github.com/XIAZY/powershell-qnx.git
 cd powershell-qnx
 export QNX_ROOTFS=/path/to/qnx-rootfs
 tools/qnx/build.sh
@@ -99,11 +99,11 @@ The script:
    `tools/qnx/hot-libraries.txt` ahead of time, with the recorded profiles in
    `tools/qnx/profiles`.
 
-The result is `out/qnx/powershell-7.6.6-qnx-x86.tar.gz`. A different output
+The result is `out/qnx/powershell-7.6.7-qnx-x86.tar.gz`. A different output
 directory can be given as the script's argument.
 
 Without `pwsh` on the build host, `PWSH_SOURCE=release tools/qnx/build.sh`
-uses the official framework-dependent release of PowerShell 7.6.6 instead,
+uses the official framework-dependent release of PowerShell 7.6.7 instead,
 verified by its SHA-256. The managed code is the same.
 
 ## BlackBerry 10 (ARM)
@@ -139,7 +139,7 @@ What differs from the x86 build:
 - Mono, the native libraries, `libpsl-native`, the AOT cross compiler
   (`armv7-unknown-nto-qnx6.5.0eabi`) and the AOT images are built for ARM.
 
-The result is `out/qnx/powershell-7.6.6-qnx-arm.tar.gz`. BlackBerry 10 has
+The result is `out/qnx/powershell-7.6.7-qnx-arm.tar.gz`. BlackBerry 10 has
 no `gzip`: unpack the archive elsewhere, or decompress it to a `.tar` first.
 Programs cannot run from the SD card, which is mounted without execute
 permission, so the tree goes to internal storage (`install.sh --prefix
@@ -193,7 +193,7 @@ On the QNX machine, as root:
 
 ```sh
 mkdir /tmp/powershell && cd /tmp/powershell
-gzip -dc /tmp/powershell-7.6.6-qnx-x86.tar.gz | tar xf -
+gzip -dc /tmp/powershell-7.6.7-qnx-x86.tar.gz | tar xf -
 ./install.sh                # to /opt/powershell, with /usr/bin/pwsh
 pwsh
 ```
