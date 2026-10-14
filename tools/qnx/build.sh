@@ -81,6 +81,19 @@ esac
 
 step() { printf '\n== %s\n' "$*"; }
 
+# Runs one step of the build with its output in $out/logs/<name>.log; if the
+# step fails, shows the end of that log, so that a build log says why.
+logged() {
+	local name=$1
+	shift
+	mkdir -p "$out/logs"
+	if ! "$@" >"$out/logs/$name.log" 2>&1; then
+		echo "build.sh: $name failed; the end of $out/logs/$name.log:" >&2
+		tail -n 100 "$out/logs/$name.log" >&2
+		exit 1
+	fi
+}
+
 # Downloads a file into the output directory once and verifies it:
 # URL, file name, SHA-256.
 fetch() {
@@ -195,20 +208,20 @@ if [[ ! -f $openssl_out/lib/libcrypto.a ]]; then
 	# make with the libraries nothing orders them before the objects, which then
 	# compile against the rootfs's OpenSSL 1.0 headers and fail.
 	if [[ $arch == x86 ]]; then
-		in_container sh -c "
+		logged openssl in_container sh -c "
 			cd openssl-build &&
 			perl ../openssl-$openssl_version/Configure $openssl_target --config=/repo/tools/qnx/openssl/$openssl_target.conf \
 				--prefix=/out/openssl-qnx-$arch --libdir=lib --openssldir=/etc/ssl \
-				no-shared no-module no-pinshared no-async no-tests no-docs AR=llvm-ar RANLIB=llvm-ranlib >/dev/null &&
-			make -j $jobs build_libs >/dev/null && make install_dev >/dev/null"
+				no-shared no-module no-pinshared no-async no-tests no-docs AR=llvm-ar RANLIB=llvm-ranlib &&
+			make -j $jobs build_libs && make install_dev"
 	else
-		in_container sh -c "
+		logged openssl in_container sh -c "
 			cd openssl-build &&
 			perl ../openssl-$openssl_version/Configure $openssl_target --config=/repo/tools/qnx/openssl/$openssl_target.conf \
 				--prefix=/out/openssl-qnx-$arch --libdir=lib --openssldir=/etc/ssl \
-				no-shared no-module no-pinshared no-async no-asm no-tests no-docs AR=llvm-ar RANLIB=llvm-ranlib >/dev/null &&
-			make build_generated >/dev/null &&
-			make -j $jobs libcrypto.a libssl.a >/dev/null &&
+				no-shared no-module no-pinshared no-async no-asm no-tests no-docs AR=llvm-ar RANLIB=llvm-ranlib &&
+			make build_generated &&
+			make -j $jobs libcrypto.a libssl.a &&
 			mkdir -p /out/openssl-qnx-$arch/lib /out/openssl-qnx-$arch/include/openssl &&
 			cp libcrypto.a libssl.a /out/openssl-qnx-$arch/lib/ &&
 			cp ../openssl-$openssl_version/include/openssl/*.h include/openssl/*.h /out/openssl-qnx-$arch/include/openssl/"
@@ -218,29 +231,29 @@ fi
 step "Mono, qnxhost and the native libraries for QNX (the runtime's build -os qnx)"
 mono_qnx=$runtime/artifacts/bin/mono/qnx.$arch.Release
 native_qnx=$runtime/artifacts/bin/native/net10.0-qnx-Release-$arch
-in_container sh -c "cd runtime && ./build.sh -os qnx -arch $arch -cross -c Release -subset mono.runtime+libs.native \
+logged runtime-qnx in_container sh -c "cd runtime && ./build.sh -os qnx -arch $arch -cross -c Release -subset mono.runtime+libs.native \
 	-cmakeargs '-DOPENSSL_ROOT_DIR=/out/openssl-qnx-$arch -DOPENSSL_INCLUDE_DIR=/out/openssl-qnx-$arch/include \
-		-DOPENSSL_CRYPTO_LIBRARY=/out/openssl-qnx-$arch/lib/libcrypto.a -DOPENSSL_SSL_LIBRARY=/out/openssl-qnx-$arch/lib/libssl.a' >/dev/null"
+		-DOPENSSL_CRYPTO_LIBRARY=/out/openssl-qnx-$arch/lib/libcrypto.a -DOPENSSL_SSL_LIBRARY=/out/openssl-qnx-$arch/lib/libssl.a'"
 
 step "the AOT cross compiler for QNX"
-in_container sh -c "
+logged aot-cross in_container sh -c "
 	python3 runtime/src/mono/mono/offsets/offsets-tool.py --abi=$aot_triple \
 		--targetdir=/out/runtime/artifacts/obj/mono/qnx.$arch.Release --monodir=/out/runtime/src/mono \
 		--nativedir=/out/runtime/src/native --outfile=/out/offsets-$aot_triple.h \
 		--libclang=\$(ls /usr/lib/llvm-*/lib/libclang-*.so.1 | sort -V | tail -1) \
-		--sysroot=/qnx-rootfs --prefix=/out/runtime/eng/native/qnx >/dev/null &&
+		--sysroot=/qnx-rootfs --prefix=/out/runtime/eng/native/qnx &&
 	cmake -G Ninja -S runtime/src/mono -B aot-cross-$arch -DCMAKE_BUILD_TYPE=Release \
 		-DAOT_TARGET_TRIPLE=$aot_triple -DAOT_OFFSETS_FILE=/out/offsets-$aot_triple.h \
 		-DENABLE_MINIMAL= -DENABLE_ICALL_SYMBOL_MAP=1 -DDISABLE_SHARED_LIBS=1 -DDISABLE_LIBS=1 \
 		-DAOT_COMPONENTS=1 -DSTATIC_COMPONENTS=1 -DGC_SUSPEND=preemptive \
-		-DMONO_CROSS_COMPILE_EXECUTABLE_NAME=1 -DCLR_CMAKE_HOST_ARCH=$host_arch >/dev/null &&
-	cmake --build aot-cross-$arch -- -j $jobs >/dev/null"
+		-DMONO_CROSS_COMPILE_EXECUTABLE_NAME=1 -DCLR_CMAKE_HOST_ARCH=$host_arch &&
+	cmake --build aot-cross-$arch -- -j $jobs"
 
 step "libpsl-native"
-in_container sh -c "
+logged libpsl-native in_container sh -c "
 	cmake -G Ninja -S /repo/src/qnx/libpsl-native -B psl-native-qnx-$arch -DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_TOOLCHAIN_FILE=/out/runtime/eng/native/qnx/toolchain.cmake >/dev/null &&
-	cmake --build psl-native-qnx-$arch >/dev/null"
+		-DCMAKE_TOOLCHAIN_FILE=/out/runtime/eng/native/qnx/toolchain.cmake &&
+	cmake --build psl-native-qnx-$arch"
 
 step "PowerShell $pwsh_version ($pwsh_source)"
 rm -rf "$out/powershell"
