@@ -6,6 +6,8 @@
 # version tag it also puts the archives, their SHA-256 and a manifest of them
 # on a draft release, to be published once those files have passed their tests
 # on the systems. The files of a published release are never replaced.
+# Branches, master included, get the archives and their SHA-256 as the run's
+# artifacts only: releases come from version tags alone.
 #
 # Both SDKs come from the blackberry10-toolchain image: the BlackBerry 10
 # Native SDK's headers and ARM libraries, which it assembles from the archived
@@ -16,21 +18,24 @@ name: QNX-Build
 run-name: "${{ github.ref_name }} - ${{ github.run_number }}"
 
 on:
-  # Manual runs need the workflow on the default branch, which is upstream's
-  # master here, so the release branches build on every push, and a ci/
-  # branch tries a change to the build before it goes on one.
+  # master (the default branch, where development happens) and the release
+  # branches build on every push; a ci/ branch tries a change to the build
+  # before it goes on one. Manual runs take the workflow from master.
   push:
     branches:
+      - master
       - release/**
       - ci/**
     tags:
       - "v*"
   pull_request:
     branches:
+      - master
       - release/**
     paths-ignore:
       - "docs/**"
       - "*.md"
+  workflow_dispatch:
 
 # A newer push to a pull request or a ci/ branch replaces the run in progress.
 concurrency:
