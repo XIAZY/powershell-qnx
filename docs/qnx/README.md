@@ -177,6 +177,7 @@ the same with Microsoft's Linux build.
 | SSH remoting | Works: `Invoke-Command -HostName`, `New-PSSession`, interactive `Enter-PSSession` and `Copy-Item -ToSession`/`-FromSession`, between QNX machines and with Linux in both directions | | A modern OpenSSH needs older algorithms enabled to talk to QNX's OpenSSH 5.2: see [SSH remoting](#ssh-remoting) |
 | Type checks of PowerShell classes | Some invalid definitions are accepted: `class C : System.IComparable { }` loads, where Linux reports that `CompareTo` has no implementation. A few error messages differ, and more assemblies load at startup | The runtime is Mono, not CoreCLR, which does not run on QNX | Nothing: a correct script gets the same result |
 | File times | Whole seconds | QNX 6.5 keeps file times in whole seconds | |
+| Named mutexes (`[Threading.Mutex]::new($false, 'name')`), which .NET shares between processes | Creating one throws; it does not hang. Unnamed mutexes are not affected | .NET builds these on robust pthread mutexes, which QNX 6.5's libc does not have; the runtime reports that, and the linux-x86 libraries then have no other path | A lock file opened with `FileShare.None`. PowerShell itself uses such a mutex only for its telemetry, which is off on QNX |
 
 Two more things to know: native debuggers do not see the ahead-of-time
 compiled libraries by name, because the runtime maps them itself instead of
