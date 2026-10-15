@@ -38,9 +38,9 @@ jobs=${JOBS:-$(nproc)}
 uid=$(id -u):$(id -g)
 runtime=${RUNTIME_DIR:-$out/runtime}
 
-pwsh_version=7.6.6
+pwsh_version=dev
 pwsh_release_url=https://github.com/PowerShell/PowerShell/releases/download/v$pwsh_version/powershell-$pwsh_version-linux-x64-fxdependent.tar.gz
-pwsh_release_sha256=7e851d01dba116269d1e7f4505ef7b54bfa6c0b5b08965b67ac229503154a9da
+pwsh_release_sha256=
 openssl_version=3.5.9
 openssl_sha256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
 cacert=cacert-2026-09-25.pem
@@ -100,7 +100,7 @@ arm)
 	aot_triple=armv7-unknown-nto-qnx6.5.0eabi
 	openssl_target=bb10-armv7
 	# The linux-arm root filesystem dotnet/runtime cross-builds with, pinned.
-	crossrootfs_image=mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-cross-arm@sha256:575c0fe7a1d175842d95fba861e5f875cbe7b07bb18700b405884d0825e32ce5
+	crossrootfs_image=mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net11.0-cross-arm@sha256:91f43da94ba122f0efb30dec0867c4e94dfc71fe739b0ca99db345bf7a47347b
 	;;
 *) echo "build.sh: QNX_ARCH must be x86 or arm" >&2; exit 2 ;;
 esac

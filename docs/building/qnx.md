@@ -69,7 +69,7 @@ dotnet-runtime-qnx/eng/native/qnx/build-rootfs.sh /path/to/qnx-rootfs ssh:root@m
 ## Build
 
 ```sh
-git clone -b release/v7.6.6 https://github.com/XIAZY/powershell-qnx.git
+git clone https://github.com/XIAZY/powershell-qnx.git
 cd powershell-qnx
 export QNX_ROOTFS=/path/to/qnx-rootfs
 tools/qnx/build.sh
@@ -99,12 +99,17 @@ The script:
    `tools/qnx/hot-libraries.txt` ahead of time, with the recorded profiles in
    `tools/qnx/profiles`.
 
-The result is `out/qnx/powershell-7.6.6-qnx-x86.tar.gz`. A different output
-directory can be given as the script's argument.
+The result is `out/qnx/powershell-<version>-qnx-x86.tar.gz`, where `<version>` is
+the release a release branch builds, or on `master` what `git describe` says
+(the newest version tag, the commits since it and the commit); for that the
+script first fetches the PowerShell/PowerShell tags the clone lacks, into the
+clone only. A different output directory can be given as the script's
+argument.
 
-Without `pwsh` on the build host, `PWSH_SOURCE=release tools/qnx/build.sh`
-uses the official framework-dependent release of PowerShell 7.6.6 instead,
-verified by its SHA-256. The managed code is the same.
+On a release branch, without `pwsh` on the build host,
+`PWSH_SOURCE=release tools/qnx/build.sh` uses the official framework-dependent
+release of that version instead, verified by its SHA-256; the managed code is
+the same. `master` has no such release, so it is built from source.
 
 ## BlackBerry 10 (ARM)
 
@@ -132,14 +137,14 @@ tools/qnx/build.sh
 What differs from the x86 build:
 - the managed libraries are the runtime's linux-arm build, cross-built
   against the linux-arm root filesystem that dotnet/runtime itself uses (its
-  `azurelinux-3.0-net10.0-cross-arm` build image, pinned by digest; only its
+  `azurelinux-3.0-net11.0-cross-arm` build image, pinned by digest; only its
   files are used, so the host needs no ARM emulation);
 - OpenSSL is built for ARMv7 without assembly (`tools/qnx/openssl/bb10-armv7.conf`
   says why);
 - Mono, the native libraries, `libpsl-native`, the AOT cross compiler
   (`armv7-unknown-nto-qnx6.5.0eabi`) and the AOT images are built for ARM.
 
-The result is `out/qnx/powershell-7.6.6-qnx-arm.tar.gz`. BlackBerry 10 has
+The result is `out/qnx/powershell-<version>-qnx-arm.tar.gz`. BlackBerry 10 has
 no `gzip`: unpack the archive elsewhere, or decompress it to a `.tar` first.
 Programs cannot run from the SD card, which is mounted without execute
 permission, so the tree goes to internal storage (`install.sh --prefix
@@ -193,7 +198,7 @@ On the QNX machine, as root:
 
 ```sh
 mkdir /tmp/powershell && cd /tmp/powershell
-gzip -dc /tmp/powershell-7.6.6-qnx-x86.tar.gz | tar xf -
+gzip -dc /tmp/powershell-<version>-qnx-x86.tar.gz | tar xf -
 ./install.sh                # to /opt/powershell, with /usr/bin/pwsh
 pwsh
 ```
