@@ -13,6 +13,7 @@ System.Net.Primitives
 System.Diagnostics.Process
 System.IO.Pipes
 System.Threading.Tasks.Parallel
+System.Text.RegularExpressions
 # PowerShell libraries:
 System.Management.Automation
 Microsoft.PowerShell.ConsoleHost
