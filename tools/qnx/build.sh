@@ -236,10 +236,18 @@ fi
 
 step "Mono, qnxhost and the native libraries for QNX (the runtime's build -os qnx)"
 mono_qnx=$runtime/artifacts/bin/mono/qnx.$arch.Release
-native_qnx=$runtime/artifacts/bin/native/net10.0-qnx-Release-$arch
 logged runtime-qnx in_container sh -c "cd runtime && ./build.sh -os qnx -arch $arch -cross -c Release -subset mono.runtime+libs.native -p:NuGetAudit=false \
 	-cmakeargs '-DOPENSSL_ROOT_DIR=/out/openssl-qnx-$arch -DOPENSSL_INCLUDE_DIR=/out/openssl-qnx-$arch/include \
 		-DOPENSSL_CRYPTO_LIBRARY=/out/openssl-qnx-$arch/lib/libcrypto.a -DOPENSSL_SSL_LIBRARY=/out/openssl-qnx-$arch/lib/libssl.a'"
+# The runtime names the directory after its .NET version (net10.0-..., net11.0-...).
+# Exactly one is expected: an output tree left from another runtime version
+# must not supply the libraries.
+native_dirs=("$runtime"/artifacts/bin/native/net*-qnx-Release-"$arch")
+if [[ ${#native_dirs[@]} -ne 1 || ! -d ${native_dirs[0]} ]]; then
+	echo "build.sh: expected one $runtime/artifacts/bin/native/net*-qnx-Release-$arch directory, found: ${native_dirs[*]}" >&2
+	exit 1
+fi
+native_qnx=${native_dirs[0]}
 
 step "the AOT cross compiler for QNX"
 logged aot-cross in_container sh -c "
