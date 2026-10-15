@@ -19,7 +19,8 @@
 #   PWSH_SOURCE      source (default): build PowerShell from this repository
 #                    with build.psm1, which needs pwsh and the .NET SDK on the
 #                    build host; release: use the official framework-dependent
-#                    release of the same version, verified by its SHA-256
+#                    release of the same version, verified by its SHA-256 (not
+#                    on a development branch, which has no release)
 #   JOBS             parallel build jobs (default: the number of processors)
 #   RUNTIME_DIR      an existing runtime checkout to build instead of cloning
 #                    the pinned one (for work on the runtime itself)
@@ -47,6 +48,37 @@ cacert_sha256=a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505
 tz_version=2026e
 tzdata_sha256=b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
 tzcode_sha256=cc3d27ca2a0d8399504551b920970d80af83bfb9c216e8082a15491921935d54
+
+# A development branch has no release of its own: its pwsh_version is "dev".
+# The archive is then named after git describe (the newest version tag, the
+# commits since it and the commit), PowerShell is built without a release tag
+# so that it reports the commit it was built from, and there is no official
+# archive to use instead.
+release_tag=v$pwsh_version
+if [[ $pwsh_version == dev ]]; then
+	if [[ $pwsh_source == release ]]; then
+		echo "build.sh: a development branch has no official release to use; build it from source" >&2
+		exit 2
+	fi
+	# Upstream's version tags, so that every clone names the build after the
+	# same tag: only the tags this clone lacks are fetched (into this clone,
+	# nothing is pushed), so the fork's own tags, which share upstream's names,
+	# are never replaced. Start-PSBuild reads the same tags.
+	upstream=https://github.com/PowerShell/PowerShell.git
+	missing=$(git ls-remote --tags --refs "$upstream" 'v*' | while read -r _ ref; do
+		git -C "$repo" show-ref -q --verify "$ref" || echo "$ref:$ref"
+	done)
+	if [[ -n $missing ]]; then
+		# shellcheck disable=SC2086
+		git -C "$repo" fetch -q --no-tags "$upstream" $missing
+	fi
+	pwsh_version=$(git -C "$repo" describe --tags --match 'v[0-9]*') || {
+		echo "build.sh: git describe found no version tag to name a development build after" >&2
+		exit 2
+	}
+	pwsh_version=${pwsh_version#v}
+	release_tag=
+fi
 
 # runtime.json pins the runtime by commit; "ref" is the branch or tag that
 # holds it.
@@ -286,7 +318,7 @@ source)
 		# to install when a newer one is already there.
 		Install-Dotnet
 		Find-Dotnet
-		Start-PSBuild -Configuration Release -Runtime fxdependent -ReleaseTag v$pwsh_version -UseNuGetOrg -Output '$out/powershell'")
+		Start-PSBuild -Configuration Release -Runtime fxdependent ${release_tag:+-ReleaseTag $release_tag} -UseNuGetOrg -Output '$out/powershell'")
 	;;
 release)
 	curl -sSL -o "$out/powershell.tar.gz" "$pwsh_release_url"
