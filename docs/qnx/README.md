@@ -248,6 +248,28 @@ here. The measurements are from a BlackBerry 10 phone (4 Krait cores at
 | Killing a process while it binds a Unix socket name | Can stop the network stack until a reboot | A BlackBerry 10 network-stack bug, reported on the device; PowerShell itself binds no socket names in ordinary use (the runtime's diagnostics port is off, and `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1`) | Don't kill scripts that create Unix sockets or named pipes while they set them up |
 | SSH remoting | Not available as a client | BlackBerry 10 has no `ssh` client, which SSH remoting runs; the PowerShell side is the same as on QNX 6.5, where it works | An `ssh` client installed separately |
 
+**Known issue: uploads over Wi-Fi.** An HTTPS upload (`Invoke-WebRequest`
+or `Invoke-RestMethod` with a body, or several transfers at once) now and
+then fails with a TLS error or a reset connection; downloads are not
+affected in practice. This was observed on the phone we test on (a
+BlackBerry Passport, Broadcom Wi-Fi driver `devnp-bcm_dhd.so` 1.88.21): when
+several connections send at once, the Wi-Fi driver packs queued frames into
+one transfer to the chip (`txglomsize`, 10 as shipped) and changes one byte
+in roughly one frame in 3,000 to 5,000, after the TCP checksum is computed.
+A server that checks TCP checksums drops the frame and it is resent; one
+that does not passes the damaged record to TLS, which rejects it ("bad
+record MAC") and ends the connection. The damage happens in the driver,
+below the network stack, so it affects every program on the phone, not
+PowerShell alone. The driver setting below stops it, with two limits: it
+needs root, which a standard phone does not give, and it is lost at reboot.
+
+```sh
+/usr/sbin/dhd_bcm_dhd -i bcm0 txglomsize 1
+```
+
+Without it, retry a failed upload, and keep the number of transfers
+running at the same time small.
+
 ## Changes to PowerShell itself
 
 The port changes PowerShell's own code only where the fix is not specific to
