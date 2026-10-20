@@ -13,7 +13,9 @@
 #   --uninstall      remove what an earlier install made
 #
 # Running it again replaces an earlier install with this tree. It never
-# replaces a pwsh or an install directory it did not make.
+# replaces a pwsh or an install directory it did not make. --uninstall leaves
+# /etc/shells as it found it: it removes only its own line, and the file only
+# if --login-shell created it and nothing else is in it.
 
 set -eu
 
@@ -22,6 +24,8 @@ bindir=/usr/bin
 login_shell=0
 uninstall=0
 marker=.installed-by-install.sh
+# Beside the marker when --login-shell created /etc/shells.
+shells_marker=.created-etc-shells
 
 usage() {
 	sed -n '/^# Usage/,/^$/s/^# \{0,1\}//p' "$0" >&2
@@ -81,6 +85,10 @@ remove_shell() {
 		rm -f /etc/shells.new
 		echo "removed $link from /etc/shells"
 	fi
+	if [ -f "$prefix/$shells_marker" ] && [ -f /etc/shells ] && [ ! -s /etc/shells ]; then
+		rm -f /etc/shells
+		echo "removed /etc/shells, which the install created"
+	fi
 }
 
 if [ $uninstall = 1 ]; then
@@ -113,6 +121,9 @@ if [ "$tree" != "$prefix" ]; then
 	mkdir "$prefix.new"
 	(cd "$tree" && tar cf - .) | (cd "$prefix.new" && tar xf -)
 	: > "$prefix.new/$marker"
+	if [ -f "$prefix/$shells_marker" ]; then
+		: > "$prefix.new/$shells_marker"
+	fi
 	rm -rf "$prefix"
 	mv "$prefix.new" "$prefix"
 	echo "installed $tree to $prefix"
@@ -126,6 +137,9 @@ ln -s "$target" "$link"
 echo "linked $link to $target"
 
 if [ $login_shell = 1 ]; then
+	if [ ! -e /etc/shells ]; then
+		: > "$prefix/$shells_marker"
+	fi
 	if [ ! -f /etc/shells ] || ! grep -qx "$link" /etc/shells; then
 		echo "$link" >> /etc/shells
 		echo "added $link to /etc/shells"
