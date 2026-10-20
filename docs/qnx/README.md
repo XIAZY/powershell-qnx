@@ -79,8 +79,11 @@ pwsh
 `install.sh` copies the tree to `/opt/powershell` and links `/usr/bin/pwsh`
 to it; `--prefix DIR` and `--bindir DIR` choose other places,
 `--login-shell` also lists `pwsh` in `/etc/shells`, and `--uninstall` removes
-what an earlier run made. Running it again replaces an earlier install. After
-it, the unpacked directory in `/tmp` can be deleted.
+what an earlier run made. Running it again replaces an earlier install. It
+stops while a PowerShell runs from the unpacked tree or the install directory
+(see [Reading files while they are paged in](#reading-files-while-they-are-paged-in));
+`--force` goes ahead anyway. After it, the unpacked directory in `/tmp` can be
+deleted.
 
 ### BlackBerry 10 (ARM)
 
@@ -303,6 +306,30 @@ What can still delete names, and how to avoid it:
   Prefer anonymous pipes or loopback TCP. If a name must be deleted, delete
   it while the socket is still open (`NamedPipeServerStream` already does);
   this makes the hang rarer, not impossible.
+
+### Reading files while they are paged in
+
+On QNX 6.5, the whole system can hang when a program reads a file with
+`read()` while another thread or program is paging the same file in through a
+memory mapping: the process manager (procnto) and the disk driver (devb-eide)
+end up waiting on each other, and from then on no program starts, and ssh and
+`/proc` stop answering until a reboot. It reproduces on QNX 6.5.0, on one
+CPU, with a small program that does only that. The QNX Software Development
+Platform 6.5.0 release notes
+(`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP)
+describe a related deadlock, Ref# 62483: resource managers that "may become
+WAITPAGE-deadlocked if the system uses lazy page faulting", with the
+workaround "Disable lazy page faulting by specifying the -mL option to
+procnto". `-mL` is a boot option for the whole system.
+
+PowerShell's assemblies and ahead-of-time images are paged in this way;
+that is what keeps its memory low. So, on QNX 6.5:
+- **Don't copy, back up, checksum or reinstall a PowerShell tree while a
+  PowerShell runs from it**, whether the install directory or the unpacked
+  tree it was started from. `install.sh` stops when it finds one running
+  (its `--force` overrides that; use it only when none is).
+- **After a hang**, the machine needs a reboot; nothing on it can be stopped
+  from a shell any more.
 
 ## BlackBerry 10
 
