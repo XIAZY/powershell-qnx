@@ -11,11 +11,20 @@
 #   --bindir DIR     where the pwsh link goes (default: /usr/bin)
 #   --login-shell    also list pwsh in /etc/shells, so it can be a login shell
 #   --uninstall      remove what an earlier install made
+#   --force          go ahead even if PowerShell is running from this tree or
+#                    the install directory (see below)
 #
 # Running it again replaces an earlier install with this tree. It never
 # replaces a pwsh or an install directory it did not make. --uninstall leaves
 # /etc/shells as it found it: it removes only its own line, and the file only
 # if --login-shell created it and nothing else is in it.
+#
+# It stops, before reading or writing anything, while a PowerShell runs from
+# this tree or from the install directory: QNX 6.5 can hang as a whole when a
+# file that a program is paging in is read at the same time (procnto and the
+# disk driver wait on each other), and installing reads every file of this
+# tree. A program started by a relative path cannot be placed, so it stops
+# for that too; --force goes ahead anyway.
 
 set -eu
 
@@ -23,6 +32,7 @@ prefix=/opt/powershell
 bindir=/usr/bin
 login_shell=0
 uninstall=0
+force=0
 marker=.installed-by-install.sh
 # Beside the marker when --login-shell created /etc/shells.
 shells_marker=.created-etc-shells
@@ -43,6 +53,7 @@ while [ $# -gt 0 ]; do
 	--bindir) [ $# -ge 2 ] || usage; bindir=$2; shift ;;
 	--login-shell) login_shell=1 ;;
 	--uninstall) uninstall=1 ;;
+	--force) force=1 ;;
 	-h|--help) usage ;;
 	*) usage ;;
 	esac
@@ -91,7 +102,65 @@ remove_shell() {
 	fi
 }
 
+# The file a path names, its symbolic links followed.
+resolve() {
+	p=$1
+	n=0
+	while [ -L "$p" ] && [ $n -lt 20 ]; do
+		t=$(ls -l "$p" | sed 's/.* -> //')
+		case $t in
+		/*) p=$t ;;
+		*) p=$(dirname "$p")/$t ;;
+		esac
+		n=$((n + 1))
+	done
+	d=$(cd "$(dirname "$p")" 2>/dev/null && pwd) || return 1
+	echo "$d/$(basename "$p")"
+}
+
+# Lists the PowerShell processes that run from one of the given directories,
+# or whose start cannot be placed. pidin names a program by the path it was
+# started with, without its leading slash. (A function of its own: QNX 6.5's
+# sh cannot parse a case statement inside $(...).)
+list_running() {
+	pidin -F "%a %n" 2>/dev/null | while read -r pid name; do
+		case ${name##*/} in
+		pwsh | qnxhost) ;;
+		*) continue ;;
+		esac
+		case $name in
+		./* | ../*) file= ;;
+		*) file=$(resolve "/$name") || file= ;;
+		esac
+		if [ -z "$file" ] || [ ! -e "$file" ]; then
+			echo "  pid $pid, $name: started by a relative path, so not known where from"
+			continue
+		fi
+		for dir in "$@"; do
+			if [ "$file" = "$dir/pwsh/pwsh" ] || [ "$file" = "$dir/bin/qnxhost" ]; then
+				echo "  pid $pid, $name: runs from $dir"
+				break
+			fi
+		done
+	done
+}
+
+# Stops while a PowerShell runs from one of the given directories; see the
+# comment at the top.
+check_running() {
+	[ $force = 0 ] || return 0
+	command -v pidin >/dev/null 2>&1 || return 0
+	found=$(list_running "$@")
+	[ -n "$found" ] || return 0
+	echo "install.sh: PowerShell is running:" >&2
+	echo "$found" >&2
+	fail "stop it first, or use --force (on QNX 6.5, reading files a running program pages in can hang the whole system)"
+}
+
 if [ $uninstall = 1 ]; then
+	if [ -d "$prefix" ]; then
+		check_running "$(cd "$prefix" && pwd)"
+	fi
 	check_link
 	check_prefix
 	remove_shell
@@ -107,6 +176,11 @@ if [ $uninstall = 1 ]; then
 fi
 
 tree=$(cd "$(dirname "$0")" && pwd)
+if [ -d "$prefix" ]; then
+	check_running "$tree" "$(cd "$prefix" && pwd)"
+else
+	check_running "$tree"
+fi
 [ -f "$tree/pwsh.props" ] && [ -x "$tree/pwsh/pwsh" ] ||
 	fail "$tree is not a PowerShell install tree (no pwsh.props or pwsh/pwsh)"
 
