@@ -44,6 +44,88 @@ heavy disk activity, when the libraries are read from disk; the interactive
 prompt appears after about 1.2 s, and the process uses about 70 MB at the
 prompt.
 
+## Installing
+
+Each [release](https://github.com/XIAZY/powershell-qnx/releases/latest) has
+one archive per system, `powershell-<version>-qnx-x86.tar.gz` for QNX
+Neutrino 6.5.0 and `powershell-<version>-qnx-arm.tar.gz` for BlackBerry 10,
+each with a `.sha256` file beside it. The commands below use 7.6.7; use the
+version of the latest release. The archive unpacks into the current
+directory.
+
+### QNX Neutrino 6.5.0 (x86)
+
+On a computer with `curl` and `sha256sum` (QNX 6.5 has no HTTPS client that
+can download from GitHub), download the archive and check it:
+
+```sh
+curl -LO https://github.com/XIAZY/powershell-qnx/releases/download/v7.6.7/powershell-7.6.7-qnx-x86.tar.gz
+curl -LO https://github.com/XIAZY/powershell-qnx/releases/download/v7.6.7/powershell-7.6.7-qnx-x86.tar.gz.sha256
+sha256sum -c powershell-7.6.7-qnx-x86.tar.gz.sha256
+```
+
+Copy `powershell-7.6.7-qnx-x86.tar.gz` to the QNX machine, `/tmp` for
+example. There, `openssl dgst -sha256 /tmp/powershell-7.6.7-qnx-x86.tar.gz`
+prints the checksum again, to compare by eye with the `.sha256` file. Then,
+as root on the QNX machine:
+
+```sh
+mkdir /tmp/powershell-7.6.7 && cd /tmp/powershell-7.6.7
+tar xzf /tmp/powershell-7.6.7-qnx-x86.tar.gz
+./install.sh
+pwsh
+```
+
+`install.sh` copies the tree to `/opt/powershell` and links `/usr/bin/pwsh`
+to it; `--prefix DIR` and `--bindir DIR` choose other places,
+`--login-shell` also lists `pwsh` in `/etc/shells`, and `--uninstall` removes
+what an earlier run made. Running it again replaces an earlier install. After
+it, the unpacked directory in `/tmp` can be deleted.
+
+### BlackBerry 10 (ARM)
+
+The easiest way is
+[term51](https://github.com/XIAZY/term51#installing), a terminal app for
+BlackBerry 10 that downloads and verifies PowerShell for you; see its README.
+
+By hand: PowerShell runs as your ordinary user, not as root, and needs a
+shell on the phone (Development Mode's `ssh` access as `devuser`, for
+example). The phone has no `gzip`, and programs cannot run from the SD card,
+so the archive is checked and decompressed on a computer and unpacked in
+internal storage. On the computer:
+
+```sh
+curl -LO https://github.com/XIAZY/powershell-qnx/releases/download/v7.6.7/powershell-7.6.7-qnx-arm.tar.gz
+curl -LO https://github.com/XIAZY/powershell-qnx/releases/download/v7.6.7/powershell-7.6.7-qnx-arm.tar.gz.sha256
+sha256sum -c powershell-7.6.7-qnx-arm.tar.gz.sha256
+gunzip powershell-7.6.7-qnx-arm.tar.gz
+```
+
+Copy the resulting `powershell-7.6.7-qnx-arm.tar` to your home directory on
+the phone. Then, in a shell on the phone:
+
+```sh
+mkdir ~/powershell && cd ~/powershell
+tar xf ~/powershell-7.6.7-qnx-arm.tar
+mkdir ~/tmp
+TMPDIR=~/tmp ./pwsh/pwsh
+```
+
+Start it later as `TMPDIR=~/tmp ~/powershell/pwsh/pwsh`. PowerShell 7.6.7
+cannot make its temporary directory in the phone's `/tmp`, so without a
+`TMPDIR` of your own it warns on every start and background jobs
+(`Start-Job`) fail.
+
+To remove it, delete `~/powershell` and `~/tmp`, and PowerShell's own
+`~/.cache/powershell` and `~/.local/share/powershell` (its history and
+modules).
+
+### For programs that download PowerShell
+
+`https://github.com/XIAZY/powershell-qnx/releases/latest/download/powershell-qnx.json`
+always names the latest release's archives, with each one's address, size and
+SHA-256.
+
 ## Running
 
 ```sh

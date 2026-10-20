@@ -11,10 +11,31 @@ It includes a command-line shell, an associated scripting language, and a framew
 
 This repository is a fork of [PowerShell/PowerShell](https://github.com/PowerShell/PowerShell)
 that builds PowerShell for QNX Neutrino 6.5.0 on x86 and for BlackBerry 10 on
-ARM, on the Mono runtime from
-[XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx).
-Built archives for both are on the
-[releases](https://github.com/XIAZY/powershell-qnx/releases) page.
+ARM.
+
+- **Download:** the [latest release](https://github.com/XIAZY/powershell-qnx/releases/latest)
+  has a ready-to-run archive for each system, with its SHA-256 beside it
+  ([all releases](https://github.com/XIAZY/powershell-qnx/releases)).
+- **The .NET port:** [XIAZY/dotnet-runtime-qnx](https://github.com/XIAZY/dotnet-runtime-qnx),
+  dotnet/runtime with QNX support added to the Mono runtime and the native
+  libraries. PowerShell runs on it, and the archives include it.
+
+### Using the prebuilt binaries
+
+- **QNX Neutrino 6.5.0 (x86):** download `powershell-<version>-qnx-x86.tar.gz`
+  and its `.sha256` file, check the checksum, copy the archive to the QNX
+  machine, unpack it with `tar xzf`, and run `./install.sh` as root. Then
+  start `pwsh`.
+- **BlackBerry 10 (ARM):** the easiest way is
+  [term51](https://github.com/XIAZY/term51#installing), a terminal app that
+  downloads and verifies PowerShell for you; see its README. To install by
+  hand, download `powershell-<version>-qnx-arm.tar.gz`, check it, decompress it
+  to a `.tar` on your computer (the phone has no `gzip`), unpack it in internal
+  storage, not on the SD card, make a `~/tmp` folder, and run
+  `TMPDIR=~/tmp ./pwsh/pwsh` as your ordinary user.
+
+The full steps are in [docs/qnx: Installing](docs/qnx/README.md#installing).
+
 PowerShell's own sources carry only the general fixes listed in
 [docs/qnx](docs/qnx/README.md#changes-to-powershell-itself); PowerShell's QNX
 native library, the build scripts and the documentation are in `src/qnx`,
