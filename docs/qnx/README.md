@@ -111,9 +111,9 @@ mkdir ~/tmp
 TMPDIR=~/tmp ./pwsh/pwsh
 ```
 
-Start it later as `TMPDIR=~/tmp ~/powershell/pwsh/pwsh`. PowerShell 7.6.7
-cannot make its temporary directory in the phone's `/tmp`, so without a
-`TMPDIR` of your own it warns on every start and background jobs
+Start it later as `TMPDIR=~/tmp ~/powershell/pwsh/pwsh`. PowerShell 7.6.7 and
+earlier cannot make their temporary directory in the phone's `/tmp`, so
+without a `TMPDIR` of your own they warn on every start and background jobs
 (`Start-Job`) fail.
 
 To remove it, delete `~/powershell` and `~/tmp`, and PowerShell's own
@@ -155,13 +155,17 @@ the generic launcher.
 | `SSL_CERT_FILE`, `SSL_CERT_DIR` | default to the install tree's `etc/ssl/cert.pem` and `etc/ssl/certs` |
 | `TZDIR` | defaults to the install tree's `etc/zoneinfo` (see below) |
 
-Unless `TMPDIR` is set, the launcher sets it to `/tmp/qnxhost-<uid>`
-(mode 0700, made if missing). .NET creates the Unix sockets of named pipes
-in the temporary directory and deletes them when they close, and on QNX 6.5
-deleting a socket's name can hang the network stack (io-pkt) until a reboot
-(see [Deleting Unix socket names](#deleting-unix-socket-names)). A directory
-of its own keeps PowerShell's sockets away from other programs' activity in
-`/tmp`.
+Unless `TMPDIR` is set, the launcher sets it to `/tmp/qnxhost-<uid>` (mode
+0700, made if missing). Where `/tmp` cannot hold a directory, as on
+BlackBerry 10, it uses `qnxhost-<uid>` in the user's cache directory instead
+(`$XDG_CACHE_HOME`, else `~/.cache`). A directory whose path leaves too
+little of a Unix socket's 104-byte name for .NET's socket names (one over 59
+bytes) is not used: the launcher warns and leaves `TMPDIR` unset. .NET
+creates the Unix sockets of named pipes in the temporary directory and
+deletes them when they close, and on QNX 6.5 deleting a socket's name can
+hang the network stack (io-pkt) until a reboot (see [Deleting Unix socket
+names](#deleting-unix-socket-names)). A directory of its own keeps
+PowerShell's sockets away from other programs' activity in `/tmp`.
 
 For the same reason `pwsh.props` sets `POWERSHELL_DIAGNOSTICS_OPTOUT=1`,
 PowerShell's own switch for its host IPC listener: without it, every
