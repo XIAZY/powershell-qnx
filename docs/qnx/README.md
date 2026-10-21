@@ -320,9 +320,13 @@ only that. It has also hung when the program read a different file into
 memory it had not touched yet while its own thread paged one in. In testing,
 such reads hung the system in 7 of 12 runs, and the same reads into memory
 touched first hung it in none of 12, which makes the hang rare or absent with
-touched memory, not impossible. The order of events inside the kernel has not
-been shown. Whether another program reading the file can trigger it has not
-been shown either. The QNX Software Development
+touched memory, not impossible. A write to a file from memory it had not
+touched yet, while its own thread paged one in, has hung the system too: in
+testing, writes from untouched memory hung the system in 3 of 3 runs, and
+writes from memory whose pages had first been read in none of 3, too few runs
+to show that touching prevents it. The order of events inside the kernel has
+not been shown. Whether another program reading the file can trigger it has
+not been shown either. The QNX Software Development
 Platform 6.5.0 release notes
 (`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP)
 describe a related deadlock, Ref# 62483: resource managers that "may become
