@@ -328,7 +328,14 @@ Platform 6.5.0 release notes
 describe a related deadlock, Ref# 62483: resource managers that "may become
 WAITPAGE-deadlocked if the system uses lazy page faulting", with the
 workaround "Disable lazy page faulting by specifying the -mL option to
-procnto". `-mL` is a boot option for the whole system.
+procnto". `-mL` is a boot option for the whole system, which QNX documents
+as making memory resident as soon as it is mapped. In testing on QNX 6.5.0, a
+file mapped privately without `MAP_LAZY` was read in whole by `mmap` before it
+returned and never paged in later; a file mapped with `MAP_LAZY` still paged in
+under it, despite that documentation, and with such a file the different-file
+case did not hang in 3 runs, against 5 hangs in 9 runs of the same case on the
+default boot. That is too few runs to show that `-mL` prevents the hang.
+Its effect on PowerShell's memory has not been measured.
 
 PowerShell's assemblies and ahead-of-time images are paged in this way;
 that is what keeps its memory low. So, on QNX 6.5:
