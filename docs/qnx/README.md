@@ -316,10 +316,13 @@ program's untouched page while it copies the data in, and the process manager
 (procnto), paging in for that same program, end up waiting on each other, and
 from then on no program starts, and ssh and `/proc` stop answering until a
 reboot. It reproduces on QNX 6.5.0, on one CPU, with a small program that does
-only that. It has also hung when the program read a different file while
-its own thread paged one in; why, and whether touching the memory first
-prevents it, has not been shown. Whether another program reading the file can
-trigger it has not been shown either. The QNX Software Development
+only that. It has also hung when the program read a different file into
+memory it had not touched yet while its own thread paged one in. In testing,
+such reads hung the system in 7 of 12 runs, and the same reads into memory
+touched first hung it in none of 12, which makes the hang rare or absent with
+touched memory, not impossible. The order of events inside the kernel has not
+been shown. Whether another program reading the file can trigger it has not
+been shown either. The QNX Software Development
 Platform 6.5.0 release notes
 (`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP)
 describe a related deadlock, Ref# 62483: resource managers that "may become
