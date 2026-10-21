@@ -309,12 +309,15 @@ What can still delete names, and how to avoid it:
 
 ### Reading files while they are paged in
 
-On QNX 6.5, the whole system can hang when a program reads a file with
-`read()` while another thread or program is paging the same file in through a
-memory mapping: the process manager (procnto) and the disk driver (devb-eide)
-end up waiting on each other, and from then on no program starts, and ssh and
-`/proc` stop answering until a reboot. It reproduces on QNX 6.5.0, on one
-CPU, with a small program that does only that. The QNX Software Development
+On QNX 6.5, the whole system can hang when a program reads a file into
+memory it has not touched yet while one of its own threads is paging the same
+file in through a memory mapping: the disk driver (devb-eide), faulting on the
+program's untouched page while it copies the data in, and the process manager
+(procnto), paging in for that same program, end up waiting on each other, and
+from then on no program starts, and ssh and `/proc` stop answering until a
+reboot. It reproduces on QNX 6.5.0, on one CPU, with a small program that does
+only that. Whether reading a different file, or another program reading the
+file, can trigger it has not been shown. The QNX Software Development
 Platform 6.5.0 release notes
 (`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP)
 describe a related deadlock, Ref# 62483: resource managers that "may become
@@ -324,9 +327,10 @@ procnto". `-mL` is a boot option for the whole system.
 
 PowerShell's assemblies and ahead-of-time images are paged in this way;
 that is what keeps its memory low. So, on QNX 6.5:
-- **Don't copy, back up, checksum or reinstall a PowerShell tree while a
-  PowerShell runs from it**, whether the install directory or the unpacked
-  tree it was started from. `install.sh` stops when it finds one running
+- **As a precaution, until that is known, don't copy, back up, checksum or
+  reinstall a PowerShell tree while a PowerShell runs from it**, whether the
+  install directory or the unpacked tree it was started from. `install.sh`
+  stops when it finds one running
   (its `--force` overrides that; use it only when none is).
 - **After a hang**, the machine needs a reboot; nothing on it can be stopped
   from a shell any more.
