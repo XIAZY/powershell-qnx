@@ -20,11 +20,13 @@
 # if --login-shell created it and nothing else is in it.
 #
 # It stops, before reading or writing anything, while a PowerShell runs from
-# this tree or from the install directory: QNX 6.5 can hang as a whole when a
-# file that a program is paging in is read at the same time (procnto and the
-# disk driver wait on each other), and installing reads every file of this
-# tree. A program started by a relative path cannot be placed, so it stops
-# for that too; --force goes ahead anyway.
+# this tree or from the install directory, as a precaution: QNX 6.5 can hang
+# as a whole when a program reads into memory it has not touched while one of
+# its own threads pages a file in (procnto and the disk driver wait on each
+# other; see docs/qnx/README.md). Whether another program reading the file, as
+# installing reads every file of this tree, can trigger it has not been shown.
+# A program started by a relative path cannot be placed, so it stops for that
+# too; --force goes ahead anyway.
 
 set -eu
 

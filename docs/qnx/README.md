@@ -309,42 +309,52 @@ What can still delete names, and how to avoid it:
 
 ### Reading files while they are paged in
 
-On QNX 6.5, the whole system can hang when a program reads a file into
-memory it has not touched yet while one of its own threads is paging the same
-file in through a memory mapping: the disk driver (devb-eide), faulting on the
+On QNX 6.5, the whole system can hang when a program reads a file into memory
+it has not touched yet while one of its own threads is paging the same file in
+through a memory mapping: the disk driver (devb-eide), faulting on the
 program's untouched page while it copies the data in, and the process manager
 (procnto), paging in for that same program, end up waiting on each other, and
 from then on no program starts, and ssh and `/proc` stop answering until a
 reboot. It reproduces on QNX 6.5.0, on one CPU, with a small program that does
-only that. It has also hung when the program read a different file into
-memory it had not touched yet while its own thread paged one in. In testing,
-such reads hung the system in 7 of 12 runs, and the same reads into memory
-touched first hung it in none of 12, which makes the hang rare or absent with
-touched memory, not impossible. A write to a file from memory it had not
-touched yet, while its own thread paged one in, has hung the system too: in
-testing, writes from untouched memory hung the system in 3 of 3 runs, and
-writes from memory whose pages had first been read in none of 3, too few runs
-to show that touching prevents it. The order of events inside the kernel has
-not been shown. Whether another program reading the file can trigger it has
-not been shown either. The QNX Software Development
-Platform 6.5.0 release notes
-(`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP)
-describe a related deadlock, Ref# 62483: resource managers that "may become
-WAITPAGE-deadlocked if the system uses lazy page faulting", with the
-workaround "Disable lazy page faulting by specifying the -mL option to
-procnto". `-mL` is a boot option for the whole system, which QNX documents
-as making memory resident as soon as it is mapped. In testing on QNX 6.5.0, a
-file mapped privately without `MAP_LAZY` was read in whole by `mmap` before it
+only that. It has also hung when the program read a different file into memory
+it had not touched yet while its own thread paged one in. In testing, such
+reads hung the system in 7 of 12 runs, and the same reads into memory touched
+first hung it in none of 12, which makes the hang rare or absent with touched
+memory, not impossible. A write to a file from memory it had not touched yet,
+while its own thread paged one in, has hung the system too: in testing, writes
+from untouched memory hung the system in 3 of 3 runs, and writes from memory
+whose pages had first been read in none of 3, too few runs to show that
+touching prevents it. The order of events inside the kernel has not been shown.
+Whether another program reading the file can trigger it has not been shown
+either. The QNX Software Development Platform 6.5.0 release notes
+(`usr/help/product/momentics/release_notes/rel_6.5.0.html` in the SDP) describe
+a related deadlock, Ref# 62483: resource managers that "may become
+WAITPAGE-deadlocked if the system uses lazy page faulting", with the workaround
+"Disable lazy page faulting by specifying the -mL option to procnto". `-mL` is
+a boot option for the whole system, which QNX documents as making memory
+resident as soon as it is mapped. In testing on QNX 6.5.0, a file mapped
+without `MAP_LAZY`, privately or shared, was read in whole by `mmap` before it
 returned and never paged in later; a file mapped with `MAP_LAZY` still paged in
 under it, despite that documentation, and with such a file the different-file
 case did not hang in 3 runs, against 5 hangs in 9 runs of the same case on the
-default boot. That is too few runs to show that `-mL` prevents the hang.
-Its effect on PowerShell's memory has not been measured.
+default boot. That is too few runs to show that `-mL` prevents the hang. Its
+effect on PowerShell's memory has not been measured.
 
-PowerShell's assemblies and ahead-of-time images are paged in this way;
-that is what keeps its memory low. So, on QNX 6.5:
-- **As a precaution, until that is known, don't copy, back up, checksum or
-  reinstall a PowerShell tree while a PowerShell runs from it**, whether the
+PowerShell's assemblies and ahead-of-time images are paged in on demand
+(`MAP_LAZY`); that is what keeps its memory low. Its runtime touches its own
+memory before reading a file into it or writing from it: System.Native (file,
+socket and console I/O), the loader of the ahead-of-time images, and the
+`qnxhost` launcher. In testing on QNX 6.5.0, a program that read the file one
+of its own threads was paging in, through the runtime's read call, hung the
+system in about 12 s with PowerShell 7.6.7's runtime, and ran clean in 3 of 3
+runs of 6 minutes with the touch. The published 7.6.7 release does not include
+this; it comes with the next release, and builds from this branch have it.
+Directory reads are not touched, since the C library reads directory entries
+into a buffer of its own, and neither is I/O that native libraries such as
+OpenSSL do themselves. So, on QNX 6.5:
+- **As a precaution, until it is known whether another program's reads can
+  trigger it, don't copy, back up, checksum or reinstall a PowerShell tree
+  while a PowerShell runs from it**, whether the
   install directory or the unpacked tree it was started from. `install.sh`
   stops when it finds one running
   (its `--force` overrides that; use it only when none is).
